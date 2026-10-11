@@ -58,6 +58,7 @@ export default function App() {
   });
 
   const typingTimeoutRef = useRef<number | null>(null);
+  const locationConsentHandledRef = useRef<Set<string>>(new Set());
 
   const loadMissedCalls = useCallback(async (userId: string) => {
     const response = await fetch(`/api/calls/missed?userId=${encodeURIComponent(userId)}`);
@@ -193,6 +194,37 @@ export default function App() {
       .catch((err) => console.error('Error fetching messages:', err));
   }, [activeConversationId, currentUser]);
 
+  const sendCurrentLocation = useCallback((conversationId: string, requestId: string) => {
+    if (!currentUser) return;
+    if (!navigator.geolocation) {
+      window.alert('Thiết bị này chưa hỗ trợ định vị. Bạn thử mở Pinkmess bằng Safari hoặc Chrome nhé.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        getSocket().emit('message:send', {
+          id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          conversationId,
+          type: 'LOCATION',
+          content: `📍 Vị trí của ${currentUser.name}`,
+          locationRequestId: requestId,
+          locationLatitude: latitude,
+          locationLongitude: longitude,
+          locationAccuracy: accuracy
+        });
+      },
+      (error) => {
+        const message = error.code === error.PERMISSION_DENIED
+          ? 'Bạn chưa cho phép Pinkmess dùng vị trí. Hãy bật Location trong cài đặt trình duyệt nhé.'
+          : 'Pinkmess chưa lấy được vị trí hiện tại. Bạn thử lại ở nơi có tín hiệu GPS tốt hơn nhé.';
+        window.alert(message);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, [currentUser]);
+
   // 3. Socket.IO Listeners
   useEffect(() => {
     const socket = getSocket();
@@ -222,6 +254,8 @@ export default function App() {
             `${newMsg.senderName} đang nhắn nè 💌`,
             newMsg.type === 'IMAGE'
               ? '🖼️ Gửi bạn một tấm ảnh dễ thương'
+              : newMsg.type === 'LOCATION'
+              ? '📍 Đã chia sẻ vị trí Google Maps'
               : newMsg.type === 'STICKER' || newMsg.type === 'GIF'
               ? '🐰 Gửi bạn một sticker đáng yêu'
               : newMsg.content || 'Có tin nhắn mới cho bạn 🌸',
@@ -245,6 +279,8 @@ export default function App() {
                       ? '🖼️ [Ảnh]'
                       : newMsg.type === 'FILE'
                       ? `📎 ${newMsg.attachments?.[0]?.name || 'Tệp đính kèm'}`
+                      : newMsg.type === 'LOCATION'
+                      ? '📍 Đã chia sẻ vị trí'
                       : newMsg.content,
                   type: newMsg.type,
                   senderName: newMsg.senderName,
@@ -305,6 +341,33 @@ export default function App() {
           setTypingUser(null);
         }
       }
+    };
+
+    const handleLocationRequestSent = () => {
+      window.alert('Đã gửi yêu cầu chia sẻ vị trí. Chờ người kia đồng ý nhé 💗');
+    };
+
+    const handleIncomingLocationRequest = (payload: any) => {
+      if (!currentUser || !payload?.requestId || !payload?.requester) return;
+      const accepted = window.confirm(
+        `${payload.requester.name} muốn chia sẻ vị trí với bạn. Hai bên đồng ý thì Pinkmess sẽ gửi tọa độ Google Maps một lần. Bạn đồng ý chứ?`
+      );
+      socket.emit('location:respond', { requestId: payload.requestId, accepted });
+    };
+
+    const handleLocationConsentGranted = (payload: any) => {
+      if (!currentUser || !payload?.requestId || !payload?.conversationId) return;
+      if (locationConsentHandledRef.current.has(payload.requestId)) return;
+      locationConsentHandledRef.current.add(payload.requestId);
+      sendCurrentLocation(payload.conversationId, payload.requestId);
+    };
+
+    const handleLocationConsentDeclined = () => {
+      window.alert('Người kia chưa đồng ý chia sẻ vị trí lần này nhé.');
+    };
+
+    const handleLocationRequestUnavailable = (payload: any) => {
+      window.alert(payload?.message || 'Người kia cần online để xác nhận chia sẻ vị trí.');
     };
 
     // Presence update
@@ -383,6 +446,11 @@ export default function App() {
     socket.on('message:updated', handleMessageUpdated);
     socket.on('message:deleted', handleMessageDeleted);
     socket.on('typing:status', handleTypingStatus);
+    socket.on('location:request-sent', handleLocationRequestSent);
+    socket.on('location:incoming-request', handleIncomingLocationRequest);
+    socket.on('location:consent-granted', handleLocationConsentGranted);
+    socket.on('location:consent-declined', handleLocationConsentDeclined);
+    socket.on('location:request-unavailable', handleLocationRequestUnavailable);
     socket.on('presence:update', handlePresenceUpdate);
     socket.on('user:profile-updated', handleProfileUpdated);
     socket.on('call:incoming', handleIncomingCall);
@@ -401,6 +469,11 @@ export default function App() {
       socket.off('message:updated', handleMessageUpdated);
       socket.off('message:deleted', handleMessageDeleted);
       socket.off('typing:status', handleTypingStatus);
+      socket.off('location:request-sent', handleLocationRequestSent);
+      socket.off('location:incoming-request', handleIncomingLocationRequest);
+      socket.off('location:consent-granted', handleLocationConsentGranted);
+      socket.off('location:consent-declined', handleLocationConsentDeclined);
+      socket.off('location:request-unavailable', handleLocationRequestUnavailable);
       socket.off('presence:update', handlePresenceUpdate);
       socket.off('user:profile-updated', handleProfileUpdated);
       socket.off('call:incoming', handleIncomingCall);
@@ -410,7 +483,7 @@ export default function App() {
       socket.off('call:unavailable', handleCallUnavailable);
       socket.off('call:media-state', handleCallMediaState);
     };
-  }, [activeConversationId, currentUser, callState.callId, loadMissedCalls]);
+  }, [activeConversationId, currentUser, callState.callId, loadMissedCalls, sendCurrentLocation]);
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
@@ -514,6 +587,17 @@ export default function App() {
       userId: currentUser.id,
       userName: currentUser.name
     });
+  };
+
+  const handleRequestLocation = () => {
+    if (!currentUser || !activeConversationId) return;
+    const conversation = conversations.find((item) => item.id === activeConversationId);
+    if (!conversation || conversation.type !== 'direct') {
+      window.alert('Chia sẻ vị trí hiện chỉ hỗ trợ cuộc trò chuyện riêng tư 1-1 nhé.');
+      return;
+    }
+
+    getSocket().emit('location:request', { conversationId: activeConversationId });
   };
 
   // Start Call
@@ -816,6 +900,7 @@ export default function App() {
                 recentStickers={['p1_stk_1', 'p1_stk_2', 'panim1_stk_1', 'p2_stk_1']}
                 onToggleFavoriteSticker={handleToggleFavoriteSticker}
                 onChangeWallpaper={handleChangeWallpaper}
+                onRequestLocation={handleRequestLocation}
               />
             </div>
           </>
