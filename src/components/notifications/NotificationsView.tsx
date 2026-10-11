@@ -1,14 +1,21 @@
 import React from 'react';
-import { Heart, Sparkles } from 'lucide-react';
+import { Heart, PhoneCall, Sparkles, X } from 'lucide-react';
+import { MissedCallRequest } from '../../types';
 
 interface NotificationsViewProps {
   onOpenStickerStore: () => void;
   onOpenMessages: () => void;
+  missedCalls?: MissedCallRequest[];
+  onCallBack?: (request: MissedCallRequest) => void;
+  onDismissCall?: (request: MissedCallRequest) => void;
 }
 
 export const NotificationsView: React.FC<NotificationsViewProps> = ({
   onOpenStickerStore,
-  onOpenMessages
+  onOpenMessages,
+  missedCalls = [],
+  onCallBack,
+  onDismissCall
 }) => {
   const notifs = [
     {
@@ -48,6 +55,56 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       </div>
 
       <div className="p-6 md:p-8 max-w-3xl space-y-3">
+        {missedCalls.map((request) => {
+          const callerName = request.fromUser?.name || 'Bạn Pinkmess';
+          const time = new Date(request.createdAt).toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          return (
+            <div
+              key={request.id}
+              className="bg-gradient-to-r from-[#FFF0F6] to-white p-4 rounded-3xl border border-[#FF9FC3] flex items-center justify-between gap-4 shadow-sm"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative shrink-0">
+                  <img
+                    src={request.fromUser?.avatar}
+                    alt={callerName}
+                    className="w-12 h-12 rounded-2xl object-cover border border-[#FFD0E1]"
+                  />
+                  <span className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full bg-[#FF4F8B] text-white flex items-center justify-center border-2 border-white">
+                    <PhoneCall className="w-3 h-3" />
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-sm text-[#4C3441] truncate">{callerName} gọi bạn nè 💗</h4>
+                  <p className="text-xs text-[#927D8A] mt-0.5">
+                    Cuộc gọi {request.type === 'video' ? 'video' : 'thoại'} • {time}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => onCallBack?.(request)}
+                  className="px-3.5 py-2 rounded-xl bg-[#FF4F8B] text-white text-xs font-bold hover:bg-[#F23C7C] transition-colors"
+                >
+                  Gọi lại
+                </button>
+                <button
+                  aria-label="Đánh dấu đã xem"
+                  onClick={() => onDismissCall?.(request)}
+                  className="w-8 h-8 rounded-xl bg-white text-[#B99AA9] hover:text-[#FF4F8B] border border-[#F7DDE8] flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
         {notifs.map((n) => {
           const Icon = n.icon;
           return (
