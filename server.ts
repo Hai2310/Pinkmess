@@ -940,7 +940,6 @@ async function startServer() {
         createdAt: new Date().toISOString()
       };
       locationRequests.set(request.id, request);
-      socket.emit('location:request-sent', { requestId: request.id, conversationId: conversation.id });
 
       if (!userToSockets.has(targetUserId)) {
         socket.emit('location:request-unavailable', {
@@ -950,6 +949,8 @@ async function startServer() {
         locationRequests.delete(request.id);
         return;
       }
+
+      socket.emit('location:request-sent', { requestId: request.id, conversationId: conversation.id });
 
       const requester = db.users.find((user) => user.id === requesterId);
       emitToUser(targetUserId, 'location:incoming-request', {
