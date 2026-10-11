@@ -356,6 +356,14 @@ async function startServer() {
   // Track online sockets: socketId -> userId
   const socketToUser = new Map<string, string>();
   const userToSockets = new Map<string, Set<string>>();
+  const activeCalls = new Map<string, { fromUserId: string; targetUserId: string }>();
+
+  const emitToUser = (userId: string | undefined, event: string, payload: any) => {
+    if (!userId) return;
+    const socketIds = userToSockets.get(userId);
+    if (!socketIds || socketIds.size === 0) return;
+    socketIds.forEach((socketId) => io.to(socketId).emit(event, payload));
+  };
 
   io.on('connection', (socket) => {
     console.log(`[Socket] Connected: ${socket.id}`);
@@ -517,29 +525,46 @@ async function startServer() {
 
     // WebRTC Calling Signaling
     socket.on('call:invite', (payload: any) => {
-      console.log(`[Call] Invite from ${payload.fromUser.name} to ${payload.targetUserId}`);
-      // Notify recipient
-      io.emit('call:incoming', payload);
+      const fromUserId = socketToUser.get(socket.id) || payload.fromUser?.id;
+      const targetUserId = payload.targetUserId;
+      if (!fromUserId || !targetUserId || fromUserId === targetUserId) return;
+
+      activeCalls.set(payload.callId, { fromUserId, targetUserId });
+      console.log(`[Call] Invite from ${fromUserId} to ${targetUserId}`);
+      emitToUser(targetUserId, 'call:incoming', { ...payload, fromUserId });
     });
 
     socket.on('call:accept', (payload: any) => {
       console.log(`[Call] Accepted call ${payload.callId}`);
-      io.emit('call:accepted', payload);
+      const call = activeCalls.get(payload.callId);
+      const acceptedBy = socketToUser.get(socket.id) || payload.acceptedBy;
+      const callerId = call?.fromUserId || payload.targetUserId;
+      emitToUser(callerId, 'call:accepted', { ...payload, acceptedBy });
     });
 
     socket.on('call:reject', (payload: any) => {
       console.log(`[Call] Rejected call ${payload.callId}`);
-      io.emit('call:rejected', payload);
+      const call = activeCalls.get(payload.callId);
+      const rejectedBy = socketToUser.get(socket.id) || payload.rejectedBy;
+      const otherUserId = call && rejectedBy === call.targetUserId ? call.fromUserId : call?.targetUserId;
+      emitToUser(otherUserId, 'call:rejected', { ...payload, rejectedBy });
+      activeCalls.delete(payload.callId);
     });
 
     socket.on('call:end', (payload: any) => {
       console.log(`[Call] Ended call ${payload.callId}`);
-      io.emit('call:ended', payload);
+      const call = activeCalls.get(payload.callId);
+      const endedBy = socketToUser.get(socket.id) || payload.endedBy;
+      const otherUserId = call && endedBy === call.targetUserId ? call.fromUserId : call?.targetUserId;
+      emitToUser(otherUserId, 'call:ended', { ...payload, endedBy });
+      activeCalls.delete(payload.callId);
     });
 
     socket.on('webrtc:signal', (payload: any) => {
-      // Broadcast signal (offer, answer, candidate)
-      socket.broadcast.emit('webrtc:signal', payload);
+      // Route SDP and ICE only to the intended peer. Broadcasting SDP to every
+      // connected user can attach the wrong stream and breaks multi-user calls.
+      const fromUserId = socketToUser.get(socket.id) || payload.fromUserId;
+      emitToUser(payload.targetUserId, 'webrtc:signal', { ...payload, fromUserId });
     });
 
     // Group call signaling

@@ -217,6 +217,7 @@ export default function App() {
           targetUser: payload.fromUser,
           type: payload.type,
           direction: 'incoming',
+          isInitiator: false,
           isMuted: false,
           isVideoOff: false,
           isScreenSharing: false,
@@ -390,6 +391,7 @@ export default function App() {
       targetUser: target,
       type,
       direction: 'outgoing',
+      isInitiator: true,
       isMuted: false,
       isVideoOff: false,
       isScreenSharing: false,
@@ -408,7 +410,11 @@ export default function App() {
   const handleAcceptCall = () => {
     if (!callState.callId) return;
     const socket = getSocket();
-    socket.emit('call:accept', { callId: callState.callId });
+    socket.emit('call:accept', {
+      callId: callState.callId,
+      acceptedBy: currentUser?.id,
+      targetUserId: callState.targetUser?.id
+    });
     setCallState((prev) => ({ ...prev, direction: 'connected' }));
   };
 

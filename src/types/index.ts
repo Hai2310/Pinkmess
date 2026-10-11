@@ -126,6 +126,7 @@ export interface CallState {
   targetUser: User | null;
   type: 'audio' | 'video';
   direction: 'incoming' | 'outgoing' | 'connected';
+  isInitiator?: boolean;
   isMuted: boolean;
   isVideoOff: boolean;
   isScreenSharing: boolean;
