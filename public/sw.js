@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pinkmess-v3';
+const CACHE_NAME = 'pinkmess-v4';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
