@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Fredoka:wght@400;500;600&family=Patrick+Hand&family=Quicksand:wght@500;600;700&display=swap');
 @import "tailwindcss";
 
 @layer base {
@@ -101,6 +102,16 @@ textarea:focus-visible {
   50% { transform: scale(1.05); opacity: 0.9; }
 }
 
+@keyframes wallpaper-drift {
+  0%, 100% { background-position: 0 0, 0 0, center; }
+  50% { background-position: 24px -18px, -18px 22px, center; }
+}
+
+@keyframes wallpaper-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
 .animate-bunny-hop {
   animation: bunny-hop 1.8s ease-in-out infinite;
 }
@@ -150,4 +161,49 @@ textarea:focus-visible {
 
 .wallpaper-minimal-white {
   background-color: #FFFFFF;
+}
+
+.wallpaper-candy-sparkle {
+  background-color: #fff7fb;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(255, 130, 174, 0.28) 0 3px, transparent 4px),
+    radial-gradient(circle at 75% 65%, rgba(233, 213, 255, 0.45) 0 4px, transparent 5px),
+    linear-gradient(135deg, #fff7fb, #ffe4f0, #fffdfb);
+  background-size: 96px 96px, 128px 128px, 220% 220%;
+  animation: wallpaper-drift 18s ease-in-out infinite, wallpaper-shimmer 20s ease-in-out infinite;
+}
+
+.wallpaper-bunny-garden {
+  background-color: #fffdfb;
+  background-image:
+    radial-gradient(circle at 15% 80%, rgba(255, 180, 206, 0.38) 0 5px, transparent 6px),
+    radial-gradient(circle at 82% 18%, rgba(200, 244, 226, 0.7) 0 5px, transparent 6px),
+    linear-gradient(160deg, #fffdfb 10%, #fff0f6 52%, #e9fff4 100%);
+  background-size: 120px 120px, 150px 150px, 100% 100%;
+  animation: wallpaper-drift 24s ease-in-out infinite;
+}
+
+.wallpaper-rainbow-hearts {
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(255, 130, 174, 0.28) 0 8px, transparent 9px),
+    radial-gradient(circle at 80% 70%, rgba(167, 139, 250, 0.22) 0 8px, transparent 9px),
+    linear-gradient(120deg, #fff0f6, #fff8dd, #e9fff4, #efe7ff);
+  background-size: 110px 110px, 140px 140px, 260% 260%;
+  animation: wallpaper-shimmer 22s ease-in-out infinite;
+}
+
+.wallpaper-night-stars {
+  color: #fffdfb;
+  background-color: #302131;
+  background-image:
+    radial-gradient(circle at 18% 25%, rgba(255, 214, 229, 0.9) 0 1px, transparent 2px),
+    radial-gradient(circle at 74% 62%, rgba(255, 240, 184, 0.9) 0 1.5px, transparent 2px),
+    linear-gradient(135deg, #2d1b28, #55405e 52%, #39283e);
+  background-size: 90px 90px, 130px 130px, 100% 100%;
+  animation: wallpaper-drift 28s ease-in-out infinite;
+}
+
+.wallpaper-custom {
+  background-color: #fffdfb;
+  background-repeat: no-repeat;
 }
