@@ -8,7 +8,9 @@ import {
   Square,
   X,
   Image as ImageIcon,
-  Check
+  Check,
+  MapPin,
+  Type
 } from 'lucide-react';
 import { Message, MessageType } from '../../types';
 import { bunnyAudio } from '../../lib/sounds';
@@ -21,6 +23,7 @@ interface ChatComposerProps {
     stickerPackId?: string;
     stickerName?: string;
     isAnimatedSticker?: boolean;
+    fontFamily?: string;
     audioDuration?: number;
     attachments?: any[];
     replyToId?: string;
@@ -31,7 +34,16 @@ interface ChatComposerProps {
   replyToMessage: Message | null;
   onCancelReply: () => void;
   onTyping: () => void;
+  onRequestLocation: () => void;
 }
+
+const chatFonts = [
+  { id: 'bunny', label: 'Bunny tròn', value: "'Fredoka', 'Arial Rounded MT Bold', sans-serif", preview: 'Xin chào 🐰' },
+  { id: 'bubble', label: 'Kẹo ngọt', value: "'Baloo 2', 'Comic Sans MS', cursive", preview: 'Dễ thương 💗' },
+  { id: 'storybook', label: 'Truyện cổ tích', value: "'Quicksand', 'Trebuchet MS', sans-serif", preview: 'Một câu chuyện ✨' },
+  { id: 'typewriter', label: 'Máy chữ', value: "'Courier New', monospace", preview: 'Lời nhắn nhỏ 💌' },
+  { id: 'handwritten', label: 'Viết tay', value: "'Patrick Hand', 'Bradley Hand', cursive", preview: 'Thương bạn 🌸' }
+];
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
   onSendMessage,
@@ -39,7 +51,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   isStickerPickerOpen,
   replyToMessage,
   onCancelReply,
-  onTyping
+  onTyping,
+  onRequestLocation
 }) => {
   const [text, setText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -50,6 +63,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const recordTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sendLongPressTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef(false);
+  const [selectedFontFamily, setSelectedFontFamily] = useState(chatFonts[0].value);
+  const [showFontPicker, setShowFontPicker] = useState(false);
 
   // Common kawaii emojis
   const quickEmojis = ['🐰', '💕', '🍓', '✨', '🌸', '💖', '🥰', '🥺', '🧋', '🍰', '🤍', '🎀', '💌', '🐾', '🧸', '☀️'];
@@ -61,6 +78,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     onSendMessage({
       type: 'TEXT',
       content: text.trim(),
+      fontFamily: selectedFontFamily,
       replyToId: replyToMessage?.id,
       replyToMessage: replyToMessage
         ? {
@@ -78,6 +96,34 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       textareaRef.current.style.height = 'auto';
     }
   };
+
+  const clearSendLongPress = () => {
+    if (sendLongPressTimerRef.current !== null) {
+      window.clearTimeout(sendLongPressTimerRef.current);
+      sendLongPressTimerRef.current = null;
+    }
+  };
+
+  const handleSendPointerDown = () => {
+    if (!text.trim()) return;
+    longPressTriggeredRef.current = false;
+    clearSendLongPress();
+    sendLongPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      setShowFontPicker(true);
+    }, 480);
+  };
+
+  const handleSendPointerUp = () => {
+    clearSendLongPress();
+    if (!longPressTriggeredRef.current) handleSend();
+  };
+
+  useEffect(() => {
+    return () => {
+      if (sendLongPressTimerRef.current !== null) window.clearTimeout(sendLongPressTimerRef.current);
+    };
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -244,6 +290,38 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         </div>
       )}
 
+      {showFontPicker && (
+        <div className="absolute bottom-full right-4 mb-2 w-72 rounded-3xl border border-[#FFD6E5] bg-white p-3 shadow-2xl z-40 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="mb-2 flex items-center justify-between px-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#4C3441]"><Type className="h-4 w-4 text-[#FF4F8B]" /> Chọn phông chữ</div>
+            <button onClick={() => setShowFontPicker(false)} className="rounded-full p-1 text-[#927D8A] hover:bg-[#FFF0F6]" aria-label="Đóng chọn phông chữ"><X className="h-3.5 w-3.5" /></button>
+          </div>
+          <div className="grid grid-cols-1 gap-1.5">
+            {chatFonts.map((font) => (
+              <button
+                key={font.id}
+                onClick={() => {
+                  setSelectedFontFamily(font.value);
+                  setShowFontPicker(false);
+                }}
+                className={`flex items-center justify-between rounded-2xl border px-3 py-2 text-left transition-all ${
+                  selectedFontFamily === font.value
+                    ? 'border-[#FF82AE] bg-[#FFF0F6] text-[#FF4F8B]'
+                    : 'border-[#F7DDE8] text-[#4C3441] hover:border-[#FFB1CA] hover:bg-[#FFF9FC]'
+                }`}
+              >
+                <span>
+                  <span className="block text-xs font-bold">{font.label}</span>
+                  <span className="block text-sm" style={{ fontFamily: font.value }}>{font.preview}</span>
+                </span>
+                {selectedFontFamily === font.value && <Check className="h-4 w-4 shrink-0" />}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 px-1 text-[10px] text-[#927D8A]">Giữ nút gửi khoảng nửa giây để mở lại menu này.</p>
+        </div>
+      )}
+
       {/* Main Composer Box */}
       {isRecording ? (
         <div className="flex items-center justify-between p-3 bg-gradient-to-r from-[#FFF0F6] to-[#FFE4F0] rounded-3xl border border-[#FF82AE] animate-pulse">
@@ -292,6 +370,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
             <button
               type="button"
+              onClick={onRequestLocation}
+              className="p-2 rounded-2xl text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFE4F0] transition-colors"
+              title="Xin phép chia sẻ vị trí với người này"
+            >
+              <MapPin className="w-5 h-5" />
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
               className="p-2 rounded-2xl text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFE4F0] transition-colors"
               title="Emoji dễ thương"
@@ -322,6 +409,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
             placeholder="Nhắn điều dễ thương gì đó đi... 💌"
+            style={{ fontFamily: selectedFontFamily }}
             className="flex-1 max-h-32 bg-transparent text-sm text-[#4C3441] placeholder:text-[#927D8A]/70 focus:outline-none resize-none py-2 px-2"
           />
 
@@ -339,9 +427,13 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={handleSend}
+                onPointerDown={handleSendPointerDown}
+                onPointerUp={handleSendPointerUp}
+                onPointerCancel={clearSendLongPress}
+                onPointerLeave={clearSendLongPress}
+                onContextMenu={(event) => event.preventDefault()}
                 className="w-10 h-10 rounded-2xl bg-gradient-to-r from-[#FF82AE] to-[#FF6F9F] text-white flex items-center justify-center shadow-md shadow-[#FF82AE]/30 hover:scale-105 active:scale-95 transition-all duration-200"
-                title="Gửi tin nhắn (Enter)"
+                title="Chạm để gửi · Giữ để chọn phông chữ"
               >
                 <Send className="w-4 h-4 translate-x-0.5" />
               </button>
