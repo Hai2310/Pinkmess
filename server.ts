@@ -859,8 +859,13 @@ async function startServer() {
 
   app.get('/api/auth/google/start', (req, res) => {
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-    if (!clientId || !process.env.GOOGLE_CLIENT_SECRET?.trim()) {
-      return res.status(503).send('Google OAuth chưa được cấu hình trên máy chủ.');
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+    const missing = [
+      !clientId ? 'GOOGLE_CLIENT_ID' : '',
+      !clientSecret ? 'GOOGLE_CLIENT_SECRET' : '',
+    ].filter(Boolean);
+    if (!clientId || !clientSecret) {
+      return res.status(503).send(`Google OAuth chưa được cấu hình trên máy chủ. Thiếu: ${missing.join(', ')}`);
     }
 
     const state = randomBytes(24).toString('hex');
