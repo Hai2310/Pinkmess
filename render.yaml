@@ -20,9 +20,7 @@ services:
         sync: false
       - key: VAPID_SUBJECT
         sync: false
-      - key: VITE_TURN_URLS
+      - key: TURN_KEY_ID
         sync: false
-      - key: VITE_TURN_USERNAME
-        sync: false
-      - key: VITE_TURN_CREDENTIAL
+      - key: TURN_KEY_API_TOKEN
         sync: false

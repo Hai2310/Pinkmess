@@ -35,32 +35,16 @@ interface WebRTCSignal {
   signal: RTCSessionDescriptionInit | RTCIceCandidateInit;
 }
 
-const getIceServers = (): RTCIceServer[] => {
-  const servers: RTCIceServer[] = [
-    {
-      urls: [
-        'stun:stun.l.google.com:19302',
-        'stun:stun1.l.google.com:19302',
-        'stun:stun2.l.google.com:19302',
-        'stun:stun.cloudflare.com:3478'
-      ]
-    }
-  ];
-
-  // Optional TURN support for strict corporate/mobile networks. Direct P2P with
-  // STUN remains the lowest-latency path when both browsers can connect directly.
-  const turnUrls = String(import.meta.env.VITE_TURN_URLS || import.meta.env.VITE_TURN_URL || '')
-    .split(',')
-    .map((url) => url.trim())
-    .filter(Boolean);
-  const turnUsername = import.meta.env.VITE_TURN_USERNAME as string | undefined;
-  const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL as string | undefined;
-  if (turnUrls.length > 0 && turnUsername && turnCredential) {
-    servers.push({ urls: turnUrls, username: turnUsername, credential: turnCredential });
+const fallbackIceServers: RTCIceServer[] = [
+  {
+    urls: [
+      'stun:stun.l.google.com:19302',
+      'stun:stun1.l.google.com:19302',
+      'stun:stun2.l.google.com:19302',
+      'stun:stun.cloudflare.com:3478'
+    ]
   }
-
-  return servers;
-};
+];
 
 export const CallManager: React.FC<CallManagerProps> = ({
   callState,
@@ -82,6 +66,8 @@ export const CallManager: React.FC<CallManagerProps> = ({
   const mediaRequestRef = useRef<Promise<MediaStream> | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const offerSentForCallRef = useRef<string | null>(null);
+  const iceServersRef = useRef<RTCIceServer[] | null>(null);
+  const iceServersRequestRef = useRef<Promise<RTCIceServer[]> | null>(null);
   const callStateRef = useRef(callState);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -104,6 +90,8 @@ export const CallManager: React.FC<CallManagerProps> = ({
     mediaRequestRef.current = null;
     pendingIceCandidatesRef.current = [];
     offerSentForCallRef.current = null;
+    iceServersRef.current = null;
+    iceServersRequestRef.current = null;
     setLocalStream(null);
     setRemoteStream(null);
     setConnectionStatus('idle');
@@ -138,14 +126,47 @@ export const CallManager: React.FC<CallManagerProps> = ({
     }, 0);
   };
 
-  const createPeerConnection = () => {
+  const getIceServers = async (): Promise<RTCIceServer[]> => {
+    if (iceServersRef.current) return iceServersRef.current;
+    if (iceServersRequestRef.current) return iceServersRequestRef.current;
+
+    const request = (async () => {
+      try {
+        const response = await fetch(`/api/turn/ice-servers?userId=${encodeURIComponent(currentUser.id)}`, {
+          credentials: 'same-origin'
+        });
+        if (!response.ok) throw new Error(`Cloudflare TURN HTTP ${response.status}`);
+        const payload = (await response.json()) as { iceServers?: RTCIceServer[] };
+        if (!Array.isArray(payload.iceServers) || payload.iceServers.length === 0) {
+          throw new Error('Cloudflare TURN trả về danh sách ICE rỗng');
+        }
+        const servers = [...fallbackIceServers, ...payload.iceServers];
+        iceServersRef.current = servers;
+        return servers;
+      } catch (error) {
+        // Direct P2P/STUN is still useful when TURN is not configured in local
+        // development or when Cloudflare is temporarily unavailable.
+        console.warn('[WebRTC] Cloudflare TURN unavailable, using STUN fallback:', error);
+        iceServersRef.current = fallbackIceServers;
+        return fallbackIceServers;
+      }
+    })();
+    iceServersRequestRef.current = request;
+    try {
+      return await request;
+    } finally {
+      if (iceServersRequestRef.current === request) iceServersRequestRef.current = null;
+    }
+  };
+
+  const createPeerConnection = async () => {
     if (peerConnectionRef.current) return peerConnectionRef.current;
     if (typeof RTCPeerConnection === 'undefined') {
       throw new Error('Trình duyệt này không hỗ trợ WebRTC. Hãy mở bằng Safari hoặc Chrome mới nhất.');
     }
 
     const peerConnection = new RTCPeerConnection({
-      iceServers: getIceServers(),
+      iceServers: await getIceServers(),
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
       iceCandidatePoolSize: 4
@@ -254,7 +275,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
 
   const ensurePeerConnection = async () => {
     const stream = await getLocalMedia();
-    const peerConnection = createPeerConnection();
+    const peerConnection = await createPeerConnection();
     stream.getTracks().forEach((track) => {
       if (!peerConnection.getSenders().some((sender) => sender.track === track)) {
         peerConnection.addTrack(track, stream);

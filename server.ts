@@ -31,6 +31,14 @@ if (webPushEnabled) {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 }
 
+// Cloudflare Realtime TURN keys are server-only secrets. The browser receives
+// short-lived ICE credentials through /api/turn/ice-servers instead of seeing
+// TURN_KEY_API_TOKEN or the long-lived TURN key ID.
+const turnKeyId = process.env.TURN_KEY_ID?.trim() || '';
+const turnKeyApiToken = process.env.TURN_KEY_API_TOKEN?.trim() || '';
+const cloudflareTurnEnabled = Boolean(turnKeyId && turnKeyApiToken);
+const cloudflareTurnCredentialTtl = 86400;
+
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -1066,6 +1074,55 @@ async function startServer() {
   app.get('/api/push/public-key', (_req, res) => {
     if (!webPushEnabled) return res.status(503).json({ enabled: false });
     res.json({ enabled: true, publicKey: vapidPublicKey });
+  });
+
+  app.get('/api/turn/ice-servers', async (req, res) => {
+    if (!cloudflareTurnEnabled) {
+      return res.status(503).json({ enabled: false, error: 'Cloudflare TURN chưa được cấu hình.' });
+    }
+
+    const userId = String(req.query.userId || '').trim();
+    if (!userId || !db.users.some((user) => user.id === userId)) {
+      return res.status(401).json({ error: 'Tài khoản không hợp lệ.' });
+    }
+
+    try {
+      const response = await fetch(
+        `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(turnKeyId)}/credentials/generate-ice-servers`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${turnKeyApiToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ ttl: cloudflareTurnCredentialTtl })
+        }
+      );
+      const payload = (await response.json()) as { iceServers?: RTCIceServer[]; error?: string };
+      if (!response.ok || !Array.isArray(payload.iceServers)) {
+        console.error('[TURN] Cloudflare credential request failed:', response.status, payload.error || 'invalid response');
+        return res.status(502).json({ error: 'Không lấy được credential Cloudflare TURN.' });
+      }
+
+      // Cloudflare may return an alternate port 53. Browsers commonly block
+      // it, so remove it to avoid needless ICE timeout on mobile networks.
+      const iceServers = payload.iceServers
+        .map((server) => ({
+          ...server,
+          urls: Array.isArray(server.urls)
+            ? server.urls.filter((url) => !/:53(?:\?|$)/.test(url))
+            : typeof server.urls === 'string' && !/:53(?:\?|$)/.test(server.urls)
+            ? server.urls
+            : undefined
+        }))
+        .filter((server) => server.urls && (Array.isArray(server.urls) ? server.urls.length > 0 : true));
+
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json({ enabled: true, iceServers, expiresIn: cloudflareTurnCredentialTtl });
+    } catch (error) {
+      console.error('[TURN] Cloudflare request error:', error);
+      return res.status(502).json({ error: 'Cloudflare TURN đang tạm thời không phản hồi.' });
+    }
   });
 
   app.post('/api/push/subscribe', (req, res) => {
