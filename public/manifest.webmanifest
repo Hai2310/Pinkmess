@@ -10,7 +10,13 @@
   "theme_color": "#fff0f6",
   "icons": [
     {
-      "src": "/src/assets/images/bunny_mascot_hero_1791670247958.jpg",
+      "src": "/icons/pinkmess-icon-180.jpg",
+      "sizes": "180x180",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pinkmess-icon-512.jpg",
       "sizes": "512x512",
       "type": "image/jpeg",
       "purpose": "any maskable"

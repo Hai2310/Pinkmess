@@ -1,8 +1,15 @@
-const CACHE_NAME = 'pinkmess-v2';
+const CACHE_NAME = 'pinkmess-v3';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(['/', '/manifest.webmanifest']))
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll([
+        '/',
+        '/manifest.webmanifest',
+        '/icons/pinkmess-icon-180.jpg',
+        '/icons/pinkmess-icon-512.jpg'
+      ])
+    )
   );
   self.skipWaiting();
 });
@@ -43,8 +50,8 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'Pinkmess 💌';
   const options = {
     body: payload.body || 'Có người đang nhắn tin cho bạn nè 🐰',
-    icon: payload.icon || '/assets/pinkmess-iphone-wallpaper.png',
-    badge: payload.badge || '/assets/pinkmess-iphone-wallpaper.png',
+    icon: payload.icon || '/icons/pinkmess-icon-512.jpg',
+    badge: payload.badge || '/icons/pinkmess-icon-180.jpg',
     tag: payload.tag || 'pinkmess-message',
     renotify: true,
     data: payload.data || {}
