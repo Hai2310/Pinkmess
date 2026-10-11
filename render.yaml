@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: hustmess-bunny-edition
+    name: pinkmess-bunny-edition
     runtime: node
     plan: free
     buildCommand: npm install --include=dev --legacy-peer-deps && npm run build
