@@ -5,6 +5,7 @@ import { User } from '../../types';
 interface NewChatModalProps {
   users: User[];
   currentUserId: string;
+  initialChatType?: 'direct' | 'group';
   onClose: () => void;
   onCreateConversation: (type: 'direct' | 'group', name: string, participants: string[]) => void;
 }
@@ -12,10 +13,11 @@ interface NewChatModalProps {
 export const NewChatModal: React.FC<NewChatModalProps> = ({
   users,
   currentUserId,
+  initialChatType = 'direct',
   onClose,
   onCreateConversation
 }) => {
-  const [chatType, setChatType] = useState<'direct' | 'group'>('direct');
+  const [chatType, setChatType] = useState<'direct' | 'group'>(initialChatType);
   const [groupName, setGroupName] = useState('');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
