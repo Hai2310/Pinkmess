@@ -1706,7 +1706,13 @@ async function startServer() {
   // Vite Integration
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        // Presence, messages and calls persist to this JSON file. Watching it
+        // makes Vite trigger a full-page reload after every socket update,
+        // which can look like a blank screen while changing tabs in dev.
+        watch: { ignored: [DB_FILE] }
+      },
       appType: 'spa'
     });
     app.use(vite.middlewares);
