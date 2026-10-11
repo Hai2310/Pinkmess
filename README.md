@@ -25,6 +25,16 @@ Trong Google Cloud Console, thêm đúng redirect URI:
 
 Trên Render, đặt ba biến môi trường `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` và `GOOGLE_REDIRECT_URI`. Không commit file `.env` hoặc secret Google vào GitHub.
 
+## Cloudflare Realtime TURN
+
+Pinkmess dùng Cloudflare Realtime TURN cho mạng di động/NAT khó, nhưng vẫn ưu tiên kết nối WebRTC trực tiếp để giảm latency. Chỉ đặt hai biến này ở server/Render, không đặt tiền tố `VITE_` và không đưa API token vào frontend:
+
+`TURN_KEY_ID`
+
+`TURN_KEY_API_TOKEN`
+
+Backend sẽ gọi `/api/turn/ice-servers` để cấp credential ngắn hạn cho từng cuộc gọi. Trên Render, xóa các biến cũ `VITE_TURN_URLS`, `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL`, thêm hai biến Cloudflare ở trên rồi deploy lại.
+
 ## Kiểm tra trước khi deploy
 
 `npm run lint && npm run build`
