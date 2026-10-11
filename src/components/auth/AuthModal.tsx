@@ -16,6 +16,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
   const [avatar, setAvatar] = useState('/src/assets/images/bunny_mascot_hero_1791670247958.jpg');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const isEmbeddedBrowser = typeof navigator !== 'undefined' && /FBAN|FBAV|Instagram|Line\/|Telegram|Twitter|wv\)/i.test(navigator.userAgent);
 
   // Avatar presets
   const avatarPresets = [
@@ -317,6 +318,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
           </svg>
           <span>Đăng nhập với Google</span>
         </button>
+        {isEmbeddedBrowser && (
+          <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-center text-[10px] leading-relaxed text-amber-700 border border-amber-200">
+            Google không cho xác thực trong trình duyệt nhúng. Hãy chọn <b>Mở trong Safari/Chrome</b> rồi đăng nhập lại nhé.
+          </p>
+        )}
 
       </div>
 
