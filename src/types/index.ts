@@ -137,3 +137,14 @@ export interface CallState {
   duration: number;
   roomId?: string;
 }
+
+export interface MissedCallRequest {
+  id: string;
+  callId: string;
+  fromUserId: string;
+  targetUserId: string;
+  type: 'audio' | 'video';
+  createdAt: string;
+  status: 'pending' | 'read';
+  fromUser: User;
+}
