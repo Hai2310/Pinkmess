@@ -599,7 +599,6 @@ export default function App() {
                   setActiveConversationId(id);
                   setIsMobileChatOpen(true);
                 }}
-                onSelectUser={handleOpenUserChat}
                 onNewChat={() => setShowNewChatModal(true)}
                 users={users}
                 currentUserId={currentUser.id}

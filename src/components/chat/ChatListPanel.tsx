@@ -6,7 +6,6 @@ interface ChatListPanelProps {
   conversations: Conversation[];
   activeConversationId: string | null;
   onSelectConversation: (id: string) => void;
-  onSelectUser: (user: User) => void;
   onNewChat: () => void;
   users: User[];
   currentUserId: string;
@@ -16,7 +15,6 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
   conversations,
   activeConversationId,
   onSelectConversation,
-  onSelectUser,
   onNewChat,
   users,
   currentUserId
@@ -24,17 +22,6 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread' | 'group' | 'favorite'>('all');
   const normalizedSearchTerm = searchTerm.toLowerCase().trim().replace(/^@/, '');
-  const matchingUsers = users
-    .filter((user) => user.id !== currentUserId)
-    .filter((user) => {
-      if (!normalizedSearchTerm) return false;
-      return (
-        user.name.toLowerCase().includes(normalizedSearchTerm) ||
-        user.bunnyId?.toLowerCase().includes(normalizedSearchTerm) ||
-        user.id.toLowerCase().includes(normalizedSearchTerm)
-      );
-    })
-    .slice(0, 8);
 
   const filtered = conversations.filter((c) => {
     const q = normalizedSearchTerm;
@@ -87,40 +74,11 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm người, nhóm hoặc @bunny_id..."
+            placeholder="Tìm trong cuộc trò chuyện..."
             className="w-full bg-white/80 hover:bg-white focus:bg-white text-sm text-[#4C3441] placeholder:text-[#927D8A]/70 pl-10 pr-10 py-3 rounded-2xl border border-[#F7DDE8] focus:border-[#FF82AE] focus:outline-none focus:ring-4 focus:ring-[#FFD6E5]/60 transition-all shadow-[0_6px_18px_rgba(255,130,174,0.06)]"
           />
           <SlidersHorizontal className="w-4 h-4 text-[#FF82AE] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
-
-        {normalizedSearchTerm && (
-          <div className="mt-3 rounded-2xl border border-[#FFD6E5] bg-white/90 p-2 shadow-[0_8px_22px_rgba(255,130,174,0.08)]">
-            <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#927D8A]">
-              Người dùng phù hợp
-            </div>
-            {matchingUsers.length > 0 ? (
-              <div className="space-y-1">
-                {matchingUsers.map((user) => (
-                  <button
-                    type="button"
-                    key={user.id}
-                    onClick={() => onSelectUser(user)}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition hover:bg-[#FFF0F6]"
-                  >
-                    <img src={user.avatar} alt={user.name} className="h-9 w-9 rounded-xl border border-[#FFD6E5] object-cover" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-bold text-[#4C3441]">{user.name}</span>
-                      <span className="block truncate font-mono text-[10px] text-[#FF4F8B]">@{user.bunnyId || user.id}</span>
-                    </span>
-                    <span className="rounded-lg bg-[#FFE4F0] px-2 py-1 text-[10px] font-semibold text-[#FF4F8B]">Nhắn tin</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="px-2 py-2 text-xs text-[#927D8A]">Không tìm thấy người theo tên hoặc ID này.</p>
-            )}
-          </div>
-        )}
 
         {/* Filter Tabs */}
         <div className="flex items-center gap-1.5 mt-3 overflow-x-auto pb-1 no-scrollbar">
@@ -153,11 +111,11 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
               🐰
             </div>
             <p className="text-sm font-semibold text-[#4C3441]">
-              {normalizedSearchTerm && matchingUsers.length > 0 ? 'Chưa có lịch sử trò chuyện' : 'Chưa có cuộc trò chuyện nào'}
+              {normalizedSearchTerm ? 'Không tìm thấy cuộc trò chuyện phù hợp' : 'Chưa có cuộc trò chuyện nào'}
             </p>
             <p className="mt-1 text-xs text-[#927D8A]">
-              {normalizedSearchTerm && matchingUsers.length > 0
-                ? 'Bấm vào người dùng ở phía trên để mở cuộc trò chuyện.'
+              {normalizedSearchTerm
+                ? 'Thử tìm bằng tên nhóm hoặc người đã có trong cuộc trò chuyện nhé.'
                 : 'Bấm nút (+) ở trên để bắt đầu nhắn điều dễ thương nhé!'}
             </p>
           </div>
