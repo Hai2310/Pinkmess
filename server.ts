@@ -25,10 +25,21 @@ const googleAuthResults = new Map<string, GoogleAuthResult>();
 
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY?.trim() || '';
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim() || '';
-const vapidSubject = process.env.VAPID_SUBJECT?.trim() || 'mailto:pinkmess@example.com';
-const webPushEnabled = Boolean(vapidPublicKey && vapidPrivateKey);
+const rawVapidSubject = process.env.VAPID_SUBJECT?.trim() || '';
+const vapidSubject = /^(mailto:|https?:\/\/)/i.test(rawVapidSubject)
+  ? rawVapidSubject
+  : rawVapidSubject.includes('@')
+  ? `mailto:${rawVapidSubject}`
+  : 'mailto:pinkmess@example.com';
+let webPushEnabled = Boolean(vapidPublicKey && vapidPrivateKey);
 if (webPushEnabled) {
-  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+  try {
+    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+  } catch (error) {
+    // A malformed VAPID subject must not prevent chat and calls from starting.
+    console.error('[Push] VAPID configuration is invalid; push notifications disabled:', error);
+    webPushEnabled = false;
+  }
 }
 
 // Cloudflare Realtime TURN keys are server-only secrets. The browser receives
