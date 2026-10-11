@@ -38,17 +38,25 @@ interface WebRTCSignal {
 const getIceServers = (): RTCIceServer[] => {
   const servers: RTCIceServer[] = [
     {
-      urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']
+      urls: [
+        'stun:stun.l.google.com:19302',
+        'stun:stun1.l.google.com:19302',
+        'stun:stun2.l.google.com:19302',
+        'stun:stun.cloudflare.com:3478'
+      ]
     }
   ];
 
   // Optional TURN support for strict corporate/mobile networks. Direct P2P with
   // STUN remains the lowest-latency path when both browsers can connect directly.
-  const turnUrl = import.meta.env.VITE_TURN_URL as string | undefined;
+  const turnUrls = String(import.meta.env.VITE_TURN_URLS || import.meta.env.VITE_TURN_URL || '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
   const turnUsername = import.meta.env.VITE_TURN_USERNAME as string | undefined;
   const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL as string | undefined;
-  if (turnUrl && turnUsername && turnCredential) {
-    servers.push({ urls: turnUrl, username: turnUsername, credential: turnCredential });
+  if (turnUrls.length > 0 && turnUsername && turnCredential) {
+    servers.push({ urls: turnUrls, username: turnUsername, credential: turnCredential });
   }
 
   return servers;
@@ -147,8 +155,9 @@ export const CallManager: React.FC<CallManagerProps> = ({
       if (event.candidate) emitSignal('ice-candidate', event.candidate.toJSON());
     };
     peerConnection.ontrack = (event) => {
-      const stream = event.streams[0] || remoteStreamRef.current || new MediaStream();
-      if (!event.streams[0]) stream.addTrack(event.track);
+      const stream = remoteStreamRef.current || event.streams[0] || new MediaStream();
+      if (!stream.getTracks().some((track) => track.id === event.track.id)) stream.addTrack(event.track);
+      event.track.onunmute = () => attachRemoteStream(stream);
       attachRemoteStream(stream);
     };
     peerConnection.onconnectionstatechange = () => {
@@ -159,7 +168,13 @@ export const CallManager: React.FC<CallManagerProps> = ({
       }
     };
     peerConnection.oniceconnectionstatechange = () => {
-      if (peerConnection.iceConnectionState === 'failed') setConnectionStatus('failed');
+      if (peerConnection.iceConnectionState === 'failed') {
+        setConnectionStatus('failed');
+        if (callStateRef.current.isInitiator && peerConnection.signalingState === 'stable') {
+          peerConnection.restartIce();
+          void startOffer(true);
+        }
+      }
     };
 
     peerConnectionRef.current = peerConnection;
@@ -215,7 +230,15 @@ export const CallManager: React.FC<CallManagerProps> = ({
             setMediaError('Không mở được camera; cuộc gọi vẫn tiếp tục bằng micro.');
             return audioOnlyStream;
           } catch {
-            // Fall through to the actionable permission message below.
+            try {
+              const compatibilityStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+              localStreamRef.current = compatibilityStream;
+              setLocalStream(compatibilityStream);
+              setMediaError('Thiết bị không nhận tuỳ chọn âm thanh nâng cao; Pinkmess đã dùng chế độ tương thích.');
+              return compatibilityStream;
+            } catch {
+              // Fall through to the actionable permission message below.
+            }
           }
         }
         throw error;
@@ -248,17 +271,18 @@ export const CallManager: React.FC<CallManagerProps> = ({
     );
   };
 
-  const startOffer = async () => {
+  const startOffer = async (iceRestart = false) => {
     const activeCall = callStateRef.current;
     if (!activeCall.active || !activeCall.isInitiator || activeCall.direction !== 'connected' || !activeCall.callId) return;
-    if (offerSentForCallRef.current === activeCall.callId) return;
+    if (!iceRestart && offerSentForCallRef.current === activeCall.callId) return;
 
     try {
       setConnectionStatus('connecting');
       const peerConnection = await ensurePeerConnection();
       const offer = await peerConnection.createOffer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: activeCall.type === 'video'
+        offerToReceiveVideo: activeCall.type === 'video',
+        iceRestart
       });
       await peerConnection.setLocalDescription(offer);
       offerSentForCallRef.current = activeCall.callId;
@@ -385,7 +409,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
       remoteAudioRef.current.srcObject = remoteStream;
       remoteAudioRef.current.play().then(() => setNeedsAudioUnlock(false)).catch(() => setNeedsAudioUnlock(true));
     }
-  }, [remoteStream, callState.type]);
+  }, [remoteStream, callState.type, callState.remoteIsVideoOff]);
 
   useEffect(() => {
     if (!localStream) return;
@@ -518,14 +542,20 @@ export const CallManager: React.FC<CallManagerProps> = ({
       <div className="relative flex min-h-0 flex-1 items-center justify-center p-3 md:p-5">
         {callState.type === 'video' ? (
           <div className="relative flex h-full w-full max-w-6xl items-center justify-center overflow-hidden rounded-3xl border-2 border-[#FF82AE]/40 bg-black/60">
-            {remoteStream?.getVideoTracks().length ? (
+            {!callState.remoteIsVideoOff && remoteStream?.getVideoTracks().length ? (
               <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-contain" onClick={unlockRemoteAudio} />
             ) : (
               <div className="flex flex-col items-center justify-center p-6 text-center">
-                <div className="relative mb-4"><img src={callState.targetUser?.avatar || '/src/assets/images/bunny_calling_avatar_1791670258938.jpg'} alt="Remote peer" className="h-40 w-40 rounded-full border-4 border-[#FF82AE] object-cover shadow-2xl" /><span className="absolute bottom-1 right-1 rounded-full bg-[#FF4F8B] p-2 text-xs">🌸</span></div>
+                <div className="relative mb-4"><img src={callState.targetUser?.avatar || '/src/assets/images/bunny_calling_avatar_1791670258938.jpg'} alt="Remote peer" className="h-40 w-40 rounded-full border-4 border-[#FF82AE] object-cover shadow-2xl" /><span className="absolute bottom-1 right-1 rounded-full bg-[#FF4F8B] p-2 text-xs">{callState.remoteIsVideoOff ? <VideoOff className="h-4 w-4" /> : '🌸'}</span></div>
                 <h3 className="text-xl font-bold">{callState.targetUser?.name}</h3>
                 <p className="mt-0.5 font-mono text-xs text-[#FF82AE]">@{callState.targetUser?.bunnyId || 'bunny'}</p>
-                <p className="mt-3 flex items-center gap-1.5 text-sm text-[#FFD6E5]"><Radio className="h-4 w-4 animate-spin text-[#FF82AE]" />{isConnected ? 'Đang chờ luồng hình ảnh từ đối phương...' : 'Đang chờ đối phương nhấc máy...'}</p>
+                <p className="mt-3 flex items-center gap-1.5 text-sm text-[#FFD6E5]">{callState.remoteIsVideoOff ? <><VideoOff className="h-4 w-4 text-[#FF82AE]" />Đối phương đang tắt camera</> : <><Radio className="h-4 w-4 animate-spin text-[#FF82AE]" />{isConnected ? 'Đang chờ luồng hình ảnh từ đối phương...' : 'Đang chờ đối phương nhấc máy...'}</>}</p>
+              </div>
+            )}
+
+            {callState.remoteIsMuted && (
+              <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/65 px-3 py-1.5 text-xs font-semibold text-white">
+                <MicOff className="h-3.5 w-3.5 text-[#FF82AE]" /> Đối phương đã tắt mic
               </div>
             )}
 
@@ -541,10 +571,10 @@ export const CallManager: React.FC<CallManagerProps> = ({
           </div>
         ) : (
           <div className="flex flex-col items-center text-center">
-            <div className="relative mb-6"><div className="h-36 w-36 overflow-hidden rounded-full border-4 border-[#FF82AE] shadow-2xl"><img src={callState.targetUser?.avatar || '/src/assets/images/bunny_calling_avatar_1791670258938.jpg'} alt="Contact" className="h-full w-full object-cover" /></div><div className="absolute -bottom-2 right-2 rounded-full bg-[#FF4F8B] p-2 text-white shadow-md"><Volume2 className="h-5 w-5" /></div></div>
+            <div className="relative mb-6"><div className="h-36 w-36 overflow-hidden rounded-full border-4 border-[#FF82AE] shadow-2xl"><img src={callState.targetUser?.avatar || '/src/assets/images/bunny_calling_avatar_1791670258938.jpg'} alt="Contact" className="h-full w-full object-cover" /></div><div className="absolute -bottom-2 right-2 rounded-full bg-[#FF4F8B] p-2 text-white shadow-md">{callState.remoteIsMuted ? <MicOff className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}</div></div>
             <h2 className="mb-0.5 text-2xl font-bold">{callState.targetUser?.name}</h2>
             <p className="mb-2 font-mono text-xs text-[#FF82AE]">@{callState.targetUser?.bunnyId || 'user'}</p>
-            <p className="mb-6 text-sm text-[#FFD6E5]">{!isConnected ? 'Đang đổ chuông...' : statusText}</p>
+            <p className="mb-6 text-sm text-[#FFD6E5]">{!isConnected ? 'Đang đổ chuông...' : callState.remoteIsMuted ? 'Đối phương đang tắt mic 🔇' : statusText}</p>
             <div className="flex h-12 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-6 py-2">{waveBars.map((height, index) => <span key={index} style={{ height: `${isConnected ? height : 20}%` }} className={`w-1.5 rounded-full transition-all duration-100 ${isConnected ? 'bg-[#FF82AE]' : 'bg-white/40'}`} />)}</div>
           </div>
         )}

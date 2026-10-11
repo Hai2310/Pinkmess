@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hustmess-bunny-v1';
+const CACHE_NAME = 'pinkmess-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -29,5 +29,42 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/')))
+  );
+});
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data?.text() || 'Bạn có tin nhắn mới trên Pinkmess 💌' };
+  }
+
+  const title = payload.title || 'Pinkmess 💌';
+  const options = {
+    body: payload.body || 'Có người đang nhắn tin cho bạn nè 🐰',
+    icon: payload.icon || '/assets/pinkmess-iphone-wallpaper.png',
+    badge: payload.badge || '/assets/pinkmess-iphone-wallpaper.png',
+    tag: payload.tag || 'pinkmess-message',
+    renotify: true,
+    data: payload.data || {}
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const conversationId = event.notification.data?.conversationId;
+  const targetUrl = conversationId ? `/?conversation=${encodeURIComponent(conversationId)}` : '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((client) => 'focus' in client);
+      if (existing) {
+        existing.navigate(targetUrl);
+        return existing.focus();
+      }
+      return self.clients.openWindow(targetUrl);
+    })
   );
 });

@@ -113,6 +113,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const otherUserId = conversation.participants.find((p) => p !== currentUser.id);
   const otherUser = allUsers.find((u) => u.id === otherUserId);
   const targetCallUser = otherUser;
+  const conversationDisplayName = conversation.type === 'direct' ? otherUser?.name || conversation.name : conversation.name;
+  const conversationDisplayAvatar = conversation.type === 'direct' ? otherUser?.avatar || conversation.avatar : conversation.avatar;
   const isOnline = otherUser?.status === 'online';
 
   const pinnedMessages = messages.filter((m) => m.isPinned);
@@ -164,8 +166,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </button>
           <div className="relative">
             <img
-              src={conversation.avatar}
-              alt={conversation.name}
+              src={conversationDisplayAvatar}
+              alt={conversationDisplayName}
               className="w-11 h-11 rounded-2xl object-cover border-2 border-[#FFD6E5] shadow-xs"
             />
             {conversation.type === 'direct' && (
@@ -178,7 +180,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-sm sm:text-base text-[#4C3441] leading-tight truncate">{conversation.name}</h3>
+              <h3 className="font-bold text-sm sm:text-base text-[#4C3441] leading-tight truncate">{conversationDisplayName}</h3>
               {conversation.type === 'group' && (
                 <span className="text-[10px] font-semibold text-[#FF4F8B] bg-[#FFE4F0] px-2 py-0.5 rounded-full border border-[#FFD6E5]">
                   {conversation.participants.length} thành viên
@@ -285,6 +287,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         ) : (
           messages.map((msg) => {
             const isMe = msg.senderId === currentUser.id;
+            const messageSender = allUsers.find((user) => user.id === msg.senderId) || (isMe ? currentUser : undefined);
+            const messageSenderName = messageSender?.name || msg.senderName;
+            const messageSenderAvatar = messageSender?.avatar || msg.senderAvatar;
             const isEditing = editingMessageId === msg.id;
 
             return (
@@ -295,8 +300,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 {/* Sender Avatar */}
                 {!isMe && (
                   <img
-                    src={msg.senderAvatar}
-                    alt={msg.senderName}
+                    src={messageSenderAvatar}
+                    alt={messageSenderName}
                     className="w-8 h-8 rounded-full object-cover border border-[#FFD6E5] shrink-0 self-end mb-1 shadow-2xs"
                   />
                 )}
@@ -305,7 +310,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <div className={`max-w-[75%] md:max-w-[65%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   {/* Sender Name in group */}
                   {!isMe && conversation.type === 'group' && (
-                    <span className="text-[11px] font-medium text-[#927D8A] mb-1 px-1">{msg.senderName}</span>
+                    <span className="text-[11px] font-medium text-[#927D8A] mb-1 px-1">{messageSenderName}</span>
                   )}
 
                   {/* Reply Quote preview */}

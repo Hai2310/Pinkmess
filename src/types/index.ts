@@ -129,6 +129,8 @@ export interface CallState {
   isInitiator?: boolean;
   isMuted: boolean;
   isVideoOff: boolean;
+  remoteIsMuted?: boolean;
+  remoteIsVideoOff?: boolean;
   isScreenSharing: boolean;
   duration: number;
   roomId?: string;

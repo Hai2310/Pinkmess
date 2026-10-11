@@ -16,6 +16,12 @@ import { getSocket } from './lib/socket';
 import { getStickerCatalog } from './lib/stickersData';
 import { loadImportedStickerPacks } from './lib/importedStickers';
 import { bunnyAudio } from './lib/sounds';
+import {
+  getNotificationPermission,
+  requestPinkmessNotifications,
+  showPinkmessNotification,
+  syncPinkmessPushSubscription
+} from './lib/notifications';
 import confetti from 'canvas-confetti';
 
 export default function App() {
@@ -56,7 +62,12 @@ export default function App() {
     const response = await fetch(`/api/conversations?userId=${encodeURIComponent(userId)}`);
     const data = response.ok ? await response.json() : [];
     setConversations(Array.isArray(data) ? data : []);
+    const requestedConversationId = new URLSearchParams(window.location.search).get('conversation');
     setActiveConversationId((currentId) => {
+      if (requestedConversationId && Array.isArray(data) && data.some((conversation: Conversation) => conversation.id === requestedConversationId)) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return requestedConversationId;
+      }
       if (currentId && Array.isArray(data) && data.some((conversation: Conversation) => conversation.id === currentId)) {
         return currentId;
       }
@@ -141,6 +152,13 @@ export default function App() {
     fetchInitialData();
   }, [loadUserConversations]);
 
+  useEffect(() => {
+    if (!currentUser) return;
+    void syncPinkmessPushSubscription(currentUser.id).catch((error) => {
+      console.warn('Không thể đồng bộ thông báo Pinkmess:', error);
+    });
+  }, [currentUser?.id]);
+
   // 2. Fetch Messages when active conversation changes
   useEffect(() => {
     if (!activeConversationId) return;
@@ -177,6 +195,17 @@ export default function App() {
       // Play chime if message is from another user
       if (currentUser && newMsg.senderId !== currentUser.id) {
         bunnyAudio.playReceiveSound();
+        if (document.visibilityState === 'visible' && newMsg.conversationId !== activeConversationId) {
+          void showPinkmessNotification(
+            `${newMsg.senderName} đang nhắn nè 💌`,
+            newMsg.type === 'IMAGE'
+              ? '🖼️ Gửi bạn một tấm ảnh dễ thương'
+              : newMsg.type === 'STICKER' || newMsg.type === 'GIF'
+              ? '🐰 Gửi bạn một sticker đáng yêu'
+              : newMsg.content || 'Có tin nhắn mới cho bạn 🌸',
+            { conversationId: newMsg.conversationId }
+          );
+        }
       }
 
       // Update last message in conversation list
@@ -263,6 +292,11 @@ export default function App() {
       );
     };
 
+    const handleProfileUpdated = (updatedUser: User) => {
+      setUsers((prev) => prev.map((user) => (user.id === updatedUser.id ? updatedUser : user)));
+      setCurrentUser((prev) => (prev?.id === updatedUser.id ? { ...prev, ...updatedUser } : prev));
+    };
+
     // WebRTC Calls
     const handleIncomingCall = (payload: any) => {
       if (currentUser && payload.targetUserId === currentUser.id) {
@@ -275,6 +309,8 @@ export default function App() {
           isInitiator: false,
           isMuted: false,
           isVideoOff: false,
+          remoteIsMuted: false,
+          remoteIsVideoOff: false,
           isScreenSharing: false,
           duration: 0
         });
@@ -300,6 +336,14 @@ export default function App() {
       window.alert('Người này đang ngoại tuyến, bạn hãy thử lại khi họ online nhé.');
     };
 
+    const handleCallMediaState = (payload: any) => {
+      setCallState((prev) =>
+        prev.callId === payload.callId
+          ? { ...prev, remoteIsMuted: Boolean(payload.isMuted), remoteIsVideoOff: Boolean(payload.isVideoOff) }
+          : prev
+      );
+    };
+
     socket.on('message:new', handleNewMessage);
     socket.on('connect', handleSocketConnect);
     socket.on('conversation:new', handleConversationNew);
@@ -309,11 +353,13 @@ export default function App() {
     socket.on('message:deleted', handleMessageDeleted);
     socket.on('typing:status', handleTypingStatus);
     socket.on('presence:update', handlePresenceUpdate);
+    socket.on('user:profile-updated', handleProfileUpdated);
     socket.on('call:incoming', handleIncomingCall);
     socket.on('call:accepted', handleCallAccepted);
     socket.on('call:rejected', handleCallRejected);
     socket.on('call:ended', handleCallEnded);
     socket.on('call:unavailable', handleCallUnavailable);
+    socket.on('call:media-state', handleCallMediaState);
 
     return () => {
       socket.off('message:new', handleNewMessage);
@@ -325,11 +371,13 @@ export default function App() {
       socket.off('message:deleted', handleMessageDeleted);
       socket.off('typing:status', handleTypingStatus);
       socket.off('presence:update', handlePresenceUpdate);
+      socket.off('user:profile-updated', handleProfileUpdated);
       socket.off('call:incoming', handleIncomingCall);
       socket.off('call:accepted', handleCallAccepted);
       socket.off('call:rejected', handleCallRejected);
       socket.off('call:ended', handleCallEnded);
       socket.off('call:unavailable', handleCallUnavailable);
+      socket.off('call:media-state', handleCallMediaState);
     };
   }, [activeConversationId, currentUser, callState.callId]);
 
@@ -460,6 +508,8 @@ export default function App() {
       isInitiator: true,
       isMuted: false,
       isVideoOff: false,
+      remoteIsMuted: false,
+      remoteIsVideoOff: false,
       isScreenSharing: false,
       duration: 0
     });
@@ -471,6 +521,34 @@ export default function App() {
       fromUser: currentUser,
       targetUserId: target.id
     });
+  };
+
+  const handleToggleCallMute = () => {
+    setCallState((prev) => {
+      const isMuted = !prev.isMuted;
+      if (prev.callId) {
+        getSocket().emit('call:media-state', { callId: prev.callId, isMuted, isVideoOff: prev.isVideoOff });
+      }
+      return { ...prev, isMuted };
+    });
+  };
+
+  const handleToggleCallVideo = () => {
+    setCallState((prev) => {
+      const isVideoOff = !prev.isVideoOff;
+      if (prev.callId) {
+        getSocket().emit('call:media-state', { callId: prev.callId, isMuted: prev.isMuted, isVideoOff });
+      }
+      return { ...prev, isVideoOff };
+    });
+  };
+
+  const handleEnableNotifications = async () => {
+    if (!currentUser) return;
+    const enabled = await requestPinkmessNotifications(currentUser.id);
+    if (!enabled && getNotificationPermission() !== 'granted') {
+      window.alert('Hãy cho phép thông báo Pinkmess trong phần Cài đặt của trình duyệt nhé 💌');
+    }
   };
 
   const handleAcceptCall = () => {
@@ -668,6 +746,8 @@ export default function App() {
                 onNewChat={() => setShowNewChatModal(true)}
                 users={users}
                 currentUserId={currentUser.id}
+                notificationPermission={getNotificationPermission()}
+                onEnableNotifications={handleEnableNotifications}
               />
             </div>
             <div className={`${isMobileChatOpen ? 'flex' : 'hidden md:flex'} min-w-0 flex-1`}>
@@ -783,8 +863,8 @@ export default function App() {
         onAcceptCall={handleAcceptCall}
         onRejectCall={handleRejectCall}
         onEndCall={handleEndCall}
-        onToggleMute={() => setCallState((prev) => ({ ...prev, isMuted: !prev.isMuted }))}
-        onToggleVideo={() => setCallState((prev) => ({ ...prev, isVideoOff: !prev.isVideoOff }))}
+        onToggleMute={handleToggleCallMute}
+        onToggleVideo={handleToggleCallVideo}
         onToggleScreenShare={() =>
           setCallState((prev) => ({ ...prev, isScreenSharing: !prev.isScreenSharing }))
         }

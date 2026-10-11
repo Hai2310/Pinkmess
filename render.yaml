@@ -14,3 +14,15 @@ services:
         sync: false
       - key: GOOGLE_REDIRECT_URI
         value: https://pinkmess-bunny-edition.onrender.com/api/auth/google/callback
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: VITE_TURN_URLS
+        sync: false
+      - key: VITE_TURN_USERNAME
+        sync: false
+      - key: VITE_TURN_CREDENTIAL
+        sync: false

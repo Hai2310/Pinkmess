@@ -4,9 +4,10 @@ import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import fs from 'fs';
 import path from 'path';
-import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
+import webpush from 'web-push';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,6 +22,14 @@ const LEGACY_DEMO_CONVERSATION_IDS = new Set(['conv_bunny_linh', 'conv_group_cut
 type GoogleAuthResult = { user: any; createdAt: number };
 const googleAuthStates = new Map<string, number>();
 const googleAuthResults = new Map<string, GoogleAuthResult>();
+
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY?.trim() || '';
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim() || '';
+const vapidSubject = process.env.VAPID_SUBJECT?.trim() || 'mailto:pinkmess@example.com';
+const webPushEnabled = Boolean(vapidPublicKey && vapidPrivateKey);
+if (webPushEnabled) {
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+}
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -287,13 +296,15 @@ interface Database {
   conversations: ServerConversation[];
   messages: ServerMessage[];
   customPacks: any[];
+  pushSubscriptions: Array<{ userId: string; subscription: any; updatedAt: string }>;
 }
 
 let db: Database = {
   users: [],
   conversations: [],
   messages: [],
-  customPacks: []
+  customPacks: [],
+  pushSubscriptions: []
 };
 
 function removeLegacyDemoData(raw: Partial<Database>): Database {
@@ -321,7 +332,10 @@ function removeLegacyDemoData(raw: Partial<Database>): Database {
     users: users as Database['users'],
     conversations: conversations as ServerConversation[],
     messages: messages as ServerMessage[],
-    customPacks: Array.isArray(raw.customPacks) ? raw.customPacks : []
+    customPacks: Array.isArray(raw.customPacks) ? raw.customPacks : [],
+    pushSubscriptions: Array.isArray(raw.pushSubscriptions)
+      ? raw.pushSubscriptions.filter((item: any) => userIds.has(item?.userId) && item?.subscription?.endpoint)
+      : []
   };
 }
 
@@ -371,6 +385,28 @@ function verifyPassword(password: string, storedHash: string) {
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
+function createGoogleOAuthState(secret: string) {
+  const payload = `${Date.now()}.${randomBytes(24).toString('hex')}`;
+  const signature = createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function verifyGoogleOAuthState(state: string, secret: string) {
+  const parts = state.split('.');
+  if (parts.length !== 3) return false;
+  const [issuedAt, nonce, signature] = parts;
+  if (!/^\d+$/.test(issuedAt) || !nonce || !signature) return false;
+  if (Date.now() - Number(issuedAt) > 10 * 60 * 1000) return false;
+  const expected = createHmac('sha256', secret).update(`${issuedAt}.${nonce}`).digest('base64url');
+  return expected === signature;
+}
+
+function readCookie(req: express.Request, name: string) {
+  const header = req.headers.cookie || '';
+  const item = header.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`));
+  return item ? decodeURIComponent(item.slice(name.length + 1)) : '';
+}
+
 function toPublicUser(user: any) {
   const { passwordHash: _passwordHash, ...publicUser } = user;
   return publicUser;
@@ -387,7 +423,7 @@ function getPublicBaseUrl(req: express.Request) {
 
 function getGoogleRedirectUri(req: express.Request) {
   return (
-    process.env.GOOGLE_REDIRECT_URI?.trim() ||
+    process.env.GOOGLE_REDIRECT_URI?.trim().replace(/\/$/, '') ||
     `${getPublicBaseUrl(req)}/api/auth/google/callback`
   );
 }
@@ -464,6 +500,17 @@ async function startServer() {
   const getConversation = (conversationId: string) =>
     db.conversations.find((conversation) => conversation.id === conversationId);
 
+  const toPublicConversation = (conversation: ServerConversation, viewerId?: string): ServerConversation => {
+    if (conversation.type !== 'direct' || !viewerId) return conversation;
+    const otherUserId = conversation.participants.find((participantId) => participantId !== viewerId);
+    const otherUser = db.users.find((user) => user.id === otherUserId);
+    return {
+      ...conversation,
+      name: otherUser?.name || conversation.name,
+      avatar: otherUser?.avatar || conversation.avatar
+    };
+  };
+
   const emitToConversation = (
     conversationId: string,
     event: string,
@@ -477,10 +524,58 @@ async function startServer() {
       userToSockets.get(participantId)?.forEach((socketId) => {
         if (socketId !== excludedSocketId && !emittedSocketIds.has(socketId)) {
           emittedSocketIds.add(socketId);
-          io.to(socketId).emit(event, payload);
+          const viewerId = socketToUser.get(socketId);
+          const eventPayload = event.startsWith('conversation:') && payload?.id
+            ? toPublicConversation(payload as ServerConversation, viewerId)
+            : payload;
+          io.to(socketId).emit(event, eventPayload);
         }
       });
     });
+  };
+
+  const sendMessagePushNotifications = async (message: ServerMessage) => {
+    if (!webPushEnabled) return;
+    const conversation = getConversation(message.conversationId);
+    if (!conversation) return;
+
+    const recipientIds = conversation.participants.filter((userId) => userId !== message.senderId);
+    const subscriptions = db.pushSubscriptions.filter((record) => recipientIds.includes(record.userId));
+    if (subscriptions.length === 0) return;
+
+    const body = message.type === 'IMAGE'
+      ? '🖼️ Gửi bạn một tấm ảnh dễ thương'
+      : message.type === 'STICKER' || message.type === 'GIF'
+      ? '🐰 Gửi bạn một sticker đáng yêu'
+      : message.type === 'AUDIO'
+      ? '🎙️ Gửi bạn một tin nhắn thoại'
+      : message.content.slice(0, 120) || 'Có tin nhắn mới cho bạn';
+
+    await Promise.all(subscriptions.map(async (record) => {
+      try {
+        await webpush.sendNotification(
+          record.subscription,
+          JSON.stringify({
+            title: `${message.senderName} đang nhắn nè 💌`,
+            body,
+            icon: '/assets/pinkmess-iphone-wallpaper.png',
+            badge: '/assets/pinkmess-iphone-wallpaper.png',
+            tag: `pinkmess-${message.conversationId}`,
+            data: { conversationId: message.conversationId }
+          }),
+          { TTL: 120, urgency: 'normal' }
+        );
+      } catch (error: any) {
+        if (error?.statusCode === 404 || error?.statusCode === 410) {
+          db.pushSubscriptions = db.pushSubscriptions.filter(
+            (candidate) => candidate.subscription?.endpoint !== record.subscription?.endpoint
+          );
+          saveDb();
+        } else {
+          console.warn('[Push] Could not send notification:', error?.message || error);
+        }
+      }
+    }));
   };
 
   const isConversationMember = (conversationId: string, userId: string | undefined) => {
@@ -609,7 +704,8 @@ async function startServer() {
       emitToConversation(newMsg.conversationId, 'message:new', newMsg, socket.id);
       emitToConversation(newMsg.conversationId, 'conversation:updated', conv, socket.id);
       socket.emit('message:new', newMsg);
-      socket.emit('conversation:updated', conv);
+      socket.emit('conversation:updated', conv ? toPublicConversation(conv, senderId) : conv);
+      void sendMessagePushNotifications(newMsg);
     });
 
     // Message reactions
@@ -734,6 +830,19 @@ async function startServer() {
       const otherUserId = call && endedBy === call.targetUserId ? call.fromUserId : call?.targetUserId;
       emitToUser(otherUserId, 'call:ended', { ...payload, endedBy });
       activeCalls.delete(payload.callId);
+    });
+
+    socket.on('call:media-state', (payload: any) => {
+      const call = activeCalls.get(payload?.callId);
+      const actorId = socketToUser.get(socket.id);
+      if (!call || !actorId || (actorId !== call.fromUserId && actorId !== call.targetUserId)) return;
+      const otherUserId = actorId === call.fromUserId ? call.targetUserId : call.fromUserId;
+      emitToUser(otherUserId, 'call:media-state', {
+        callId: payload.callId,
+        fromUserId: actorId,
+        isMuted: Boolean(payload.isMuted),
+        isVideoOff: Boolean(payload.isVideoOff)
+      });
     });
 
     socket.on('webrtc:signal', (payload: any) => {
@@ -868,8 +977,12 @@ async function startServer() {
       return res.status(503).send(`Google OAuth chưa được cấu hình trên máy chủ. Thiếu: ${missing.join(', ')}`);
     }
 
-    const state = randomBytes(24).toString('hex');
+    const state = createGoogleOAuthState(clientSecret);
     googleAuthStates.set(state, Date.now());
+    res.setHeader(
+      'Set-Cookie',
+      `pinkmess_oauth_state=${encodeURIComponent(state)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`
+    );
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: getGoogleRedirectUri(req),
@@ -884,12 +997,27 @@ async function startServer() {
 
   app.get('/api/auth/google/callback', async (req, res) => {
     const { code, state, error } = req.query;
-    if (error) return res.redirect('/?google_error=cancelled');
-    if (typeof code !== 'string' || typeof state !== 'string' || !googleAuthStates.has(state)) {
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() || '';
+    const clearOAuthCookie = () => {
+      res.setHeader('Set-Cookie', 'pinkmess_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+    };
+    if (error) {
+      clearOAuthCookie();
+      return res.redirect('/?google_error=cancelled');
+    }
+    const stateCookie = typeof state === 'string' ? readCookie(req, 'pinkmess_oauth_state') : '';
+    const validState =
+      typeof state === 'string' &&
+      Boolean(clientSecret) &&
+      verifyGoogleOAuthState(state, clientSecret) &&
+      (googleAuthStates.has(state) || stateCookie === state);
+    if (typeof code !== 'string' || !validState) {
+      clearOAuthCookie();
       return res.status(400).send('Liên kết Google không hợp lệ hoặc đã hết hạn.');
     }
 
     googleAuthStates.delete(state);
+    clearOAuthCookie();
     try {
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
@@ -935,6 +1063,38 @@ async function startServer() {
     res.json({ success: true, user: result.user });
   });
 
+  app.get('/api/push/public-key', (_req, res) => {
+    if (!webPushEnabled) return res.status(503).json({ enabled: false });
+    res.json({ enabled: true, publicKey: vapidPublicKey });
+  });
+
+  app.post('/api/push/subscribe', (req, res) => {
+    if (!webPushEnabled) return res.status(503).json({ error: 'Push notifications chưa được cấu hình trên máy chủ.' });
+    const { userId, subscription } = req.body || {};
+    if (!db.users.some((user) => user.id === userId)) return res.status(401).json({ error: 'Tài khoản không hợp lệ.' });
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      return res.status(400).json({ error: 'Push subscription không hợp lệ.' });
+    }
+
+    db.pushSubscriptions = db.pushSubscriptions.filter(
+      (record) => record.subscription?.endpoint !== subscription.endpoint && record.userId !== userId
+    );
+    db.pushSubscriptions.push({ userId, subscription, updatedAt: new Date().toISOString() });
+    saveDb();
+    res.json({ success: true });
+  });
+
+  app.post('/api/push/unsubscribe', (req, res) => {
+    const { userId, endpoint } = req.body || {};
+    if (userId && endpoint) {
+      db.pushSubscriptions = db.pushSubscriptions.filter(
+        (record) => !(record.userId === userId && record.subscription?.endpoint === endpoint)
+      );
+      saveDb();
+    }
+    res.json({ success: true });
+  });
+
   // Users
   app.get('/api/users/search', (req, res) => {
     const q = String(req.query.q || '').toLowerCase().trim().replace(/^@/, '');
@@ -970,7 +1130,11 @@ async function startServer() {
   app.get('/api/conversations', (req, res) => {
     const userId = String(req.query.userId || '');
     if (!db.users.some((user) => user.id === userId)) return res.status(401).json({ error: 'Tài khoản không hợp lệ.' });
-    res.json(db.conversations.filter((conversation) => conversation.participants.includes(userId)));
+    res.json(
+      db.conversations
+        .filter((conversation) => conversation.participants.includes(userId))
+        .map((conversation) => toPublicConversation(conversation, userId))
+    );
   });
 
   app.post('/api/conversations', (req, res) => {
@@ -1005,7 +1169,7 @@ async function startServer() {
     db.conversations.unshift(newConv);
     saveDb();
     emitToConversation(newConv.id, 'conversation:new', newConv);
-    res.json(newConv);
+    res.json(toPublicConversation(newConv, userId));
   });
 
   app.put('/api/conversations/:id', (req, res) => {
@@ -1017,7 +1181,7 @@ async function startServer() {
     Object.assign(conv, req.body);
     saveDb();
     emitToConversation(conv.id, 'conversation:updated', conv);
-    res.json(conv);
+    res.json(toPublicConversation(conv, userId));
   });
 
   // Messages

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Plus, Pin, BellOff, MessageCircleHeart, SlidersHorizontal } from 'lucide-react';
+import { Search, Plus, Pin, BellOff, BellRing, MessageCircleHeart, SlidersHorizontal } from 'lucide-react';
 import { Conversation, User } from '../../types';
 
 interface ChatListPanelProps {
@@ -9,6 +9,8 @@ interface ChatListPanelProps {
   onNewChat: () => void;
   users: User[];
   currentUserId: string;
+  notificationPermission?: NotificationPermission | 'unsupported';
+  onEnableNotifications?: () => void;
 }
 
 export const ChatListPanel: React.FC<ChatListPanelProps> = ({
@@ -17,7 +19,9 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
   onSelectConversation,
   onNewChat,
   users,
-  currentUserId
+  currentUserId,
+  notificationPermission,
+  onEnableNotifications
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread' | 'group' | 'favorite'>('all');
@@ -56,6 +60,15 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
             </div>
             <h2 className="text-[23px] font-black text-[#4C3441] tracking-tight">Tin nhắn</h2>
             <p className="text-xs text-[#927D8A] mt-0.5">Những cuộc trò chuyện ngọt ngào của bạn</p>
+            {notificationPermission === 'default' && onEnableNotifications && (
+              <button
+                type="button"
+                onClick={onEnableNotifications}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#FFF0F6] px-2.5 py-1 text-[10px] font-semibold text-[#FF4F8B] border border-[#FFD6E5] hover:bg-[#FFE4F0]"
+              >
+                <BellRing className="h-3.5 w-3.5" /> Bật thông báo tin nhắn
+              </button>
+            )}
           </div>
           <button
             onClick={onNewChat}
@@ -126,13 +139,15 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
             const otherUserId = c.participants.find((p) => p !== currentUserId);
             const otherUser = users.find((u) => u.id === otherUserId);
             const isOnline = otherUser?.status === 'online';
+            const displayName = c.type === 'direct' ? otherUser?.name || c.name : c.name;
+            const displayAvatar = c.type === 'direct' ? otherUser?.avatar || c.avatar : c.avatar;
 
             return (
               <button
                 type="button"
                 key={c.id}
                 onClick={() => onSelectConversation(c.id)}
-                aria-label={`Mở cuộc trò chuyện ${c.name}`}
+                aria-label={`Mở cuộc trò chuyện ${displayName}`}
                 className={`w-full text-left flex items-center gap-3 p-3.5 rounded-[22px] cursor-pointer transition-all duration-200 border ${
                   isActive
                     ? 'bg-gradient-to-r from-[#FFF0F6] to-[#FFE4F0]/70 border-[#FF82AE] shadow-[0_8px_22px_rgba(255,130,174,0.14)]'
@@ -142,8 +157,8 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
                 {/* Avatar with online bubble */}
                 <div className="relative shrink-0">
                   <img
-                    src={c.avatar}
-                    alt={c.name}
+                    src={displayAvatar}
+                    alt={displayName}
                     className="w-12 h-12 rounded-[18px] object-cover border border-[#F7DDE8] shadow-sm"
                   />
                   {c.type === 'direct' && (
@@ -164,7 +179,7 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <span className={`text-[13px] truncate font-semibold ${isActive ? 'text-[#FF4F8B]' : 'text-[#4C3441]'}`}>
-                      {c.name}
+                      {displayName}
                     </span>
                     <span className="text-[11px] text-[#927D8A] shrink-0 ml-2">
                       {c.lastMessage
