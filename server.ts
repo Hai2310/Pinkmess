@@ -310,12 +310,23 @@ interface ServerConversation {
   };
 }
 
+interface ServerCallRequest {
+  id: string;
+  callId: string;
+  fromUserId: string;
+  targetUserId: string;
+  type: 'audio' | 'video';
+  createdAt: string;
+  status: 'pending' | 'read';
+}
+
 interface Database {
   users: Array<(typeof initialUsers)[number] & { passwordHash?: string }>;
   conversations: ServerConversation[];
   messages: ServerMessage[];
   customPacks: any[];
   pushSubscriptions: Array<{ userId: string; subscription: any; updatedAt: string }>;
+  callRequests: ServerCallRequest[];
 }
 
 let db: Database = {
@@ -323,7 +334,8 @@ let db: Database = {
   conversations: [],
   messages: [],
   customPacks: [],
-  pushSubscriptions: []
+  pushSubscriptions: [],
+  callRequests: []
 };
 
 function removeLegacyDemoData(raw: Partial<Database>): Database {
@@ -354,6 +366,16 @@ function removeLegacyDemoData(raw: Partial<Database>): Database {
     customPacks: Array.isArray(raw.customPacks) ? raw.customPacks : [],
     pushSubscriptions: Array.isArray(raw.pushSubscriptions)
       ? raw.pushSubscriptions.filter((item: any) => userIds.has(item?.userId) && item?.subscription?.endpoint)
+      : [],
+    callRequests: Array.isArray(raw.callRequests)
+      ? raw.callRequests.filter(
+          (item: any) =>
+            item?.id &&
+            item?.callId &&
+            userIds.has(item?.fromUserId) &&
+            userIds.has(item?.targetUserId) &&
+            (item?.type === 'audio' || item?.type === 'video')
+        )
       : []
   };
 }
@@ -597,6 +619,51 @@ async function startServer() {
     }));
   };
 
+  const sendCallPushNotification = async (request: ServerCallRequest) => {
+    if (!webPushEnabled) return false;
+
+    const caller = db.users.find((user) => user.id === request.fromUserId);
+    const subscriptions = db.pushSubscriptions.filter((record) => record.userId === request.targetUserId);
+    if (!caller || subscriptions.length === 0) return false;
+
+    const callLabel = request.type === 'video' ? 'cuộc gọi video' : 'cuộc gọi thoại';
+    let delivered = false;
+    await Promise.all(
+      subscriptions.map(async (record) => {
+        try {
+          await webpush.sendNotification(
+            record.subscription,
+            JSON.stringify({
+              title: `📞 ${caller.name} đang gọi bạn`,
+              body: `Có ${callLabel} Pinkmess đang chờ bạn nè 💗`,
+              icon: '/icons/pinkmess-icon-512.jpg',
+              badge: '/icons/pinkmess-icon-180.jpg',
+              tag: `pinkmess-call-${request.callId}`,
+              data: {
+                type: 'call',
+                callRequestId: request.id,
+                callerId: request.fromUserId,
+                callType: request.type
+              }
+            }),
+            { TTL: 86400, urgency: 'high' }
+          );
+          delivered = true;
+        } catch (error: any) {
+          if (error?.statusCode === 404 || error?.statusCode === 410) {
+            db.pushSubscriptions = db.pushSubscriptions.filter(
+              (candidate) => candidate.subscription?.endpoint !== record.subscription?.endpoint
+            );
+            saveDb();
+          } else {
+            console.warn('[Push] Could not send call notification:', error?.message || error);
+          }
+        }
+      })
+    );
+    return delivered;
+  };
+
   const isConversationMember = (conversationId: string, userId: string | undefined) => {
     const conversation = getConversation(conversationId);
     return Boolean(userId && conversation?.participants.includes(userId));
@@ -805,17 +872,39 @@ async function startServer() {
       const targetUserId = payload.targetUserId;
       if (!fromUserId || !targetUserId || fromUserId === targetUserId) return;
 
-      activeCalls.set(payload.callId, { fromUserId, targetUserId });
+      const callId = String(payload.callId || `call_${Date.now()}`);
+      const callType = payload.type === 'video' ? 'video' : 'audio';
+      activeCalls.set(callId, { fromUserId, targetUserId });
       console.log(`[Call] Invite from ${fromUserId} to ${targetUserId}`);
       if (!userToSockets.has(targetUserId)) {
-        emitToUser(fromUserId, 'call:unavailable', { callId: payload.callId, targetUserId });
-        activeCalls.delete(payload.callId);
+        const request: ServerCallRequest = {
+          id: `call_request_${Date.now()}_${randomBytes(3).toString('hex')}`,
+          callId,
+          fromUserId,
+          targetUserId,
+          type: callType,
+          createdAt: new Date().toISOString(),
+          status: 'pending'
+        };
+        db.callRequests = [...db.callRequests, request].slice(-500);
+        saveDb();
+
+        const hasPushSubscription = webPushEnabled && db.pushSubscriptions.some((record) => record.userId === targetUserId);
+        emitToUser(fromUserId, 'call:unavailable', {
+          callId,
+          targetUserId,
+          requestId: request.id,
+          offline: true,
+          notifyQueued: hasPushSubscription
+        });
+        void sendCallPushNotification(request);
+        activeCalls.delete(callId);
         return;
       }
       const caller = db.users.find((user) => user.id === fromUserId);
       emitToUser(targetUserId, 'call:incoming', {
-        callId: payload.callId,
-        type: payload.type,
+        callId,
+        type: callType,
         fromUser: caller ? toPublicUser(caller) : payload.fromUser,
         targetUserId,
         fromUserId
@@ -1160,6 +1249,42 @@ async function startServer() {
       );
       saveDb();
     }
+    res.json({ success: true });
+  });
+
+  // Offline calls are stored so the recipient can see them and call back
+  // even when Web Push permission was not granted on their device.
+  app.get('/api/calls/missed', (req, res) => {
+    const userId = String(req.query.userId || '');
+    if (!userId || !db.users.some((user) => user.id === userId)) {
+      return res.status(401).json({ error: 'Tài khoản không hợp lệ.' });
+    }
+
+    const requests = db.callRequests
+      .filter((request) => request.targetUserId === userId && request.status === 'pending')
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 50)
+      .map((request) => {
+        const caller = db.users.find((user) => user.id === request.fromUserId);
+        return {
+          ...request,
+          fromUser: caller ? toPublicUser(caller) : null
+        };
+      })
+      .filter((request) => request.fromUser);
+
+    res.json(requests);
+  });
+
+  app.post('/api/calls/missed/:requestId/read', (req, res) => {
+    const userId = String(req.body?.userId || '');
+    const request = db.callRequests.find(
+      (candidate) => candidate.id === req.params.requestId && candidate.targetUserId === userId
+    );
+    if (!request) return res.status(404).json({ error: 'Không tìm thấy cuộc gọi nhỡ.' });
+
+    request.status = 'read';
+    saveDb();
     res.json({ success: true });
   });
 
