@@ -94,6 +94,7 @@ export interface Conversation {
   isPinned?: boolean;
   isMuted?: boolean;
   wallpaper?: string;
+  wallpapers?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
