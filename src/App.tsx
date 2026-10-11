@@ -11,7 +11,7 @@ import { NewChatModal } from './components/chat/NewChatModal';
 import { CustomStickerModal } from './components/stickers/CustomStickerModal';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { AuthModal } from './components/auth/AuthModal';
-import { User, Conversation, Message, CallState, StickerPack, UserStatus } from './types';
+import { User, Conversation, Message, CallState, StickerPack, UserStatus, MissedCallRequest } from './types';
 import { getSocket } from './lib/socket';
 import { getStickerCatalog } from './lib/stickersData';
 import { loadImportedStickerPacks } from './lib/importedStickers';
@@ -37,6 +37,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [stickerPacks, setStickerPacks] = useState<StickerPack[]>(getStickerCatalog());
   const [typingUser, setTypingUser] = useState<string | null>(null);
+  const [missedCalls, setMissedCalls] = useState<MissedCallRequest[]>([]);
 
   // Modals state
   const [showNewChatModal, setShowNewChatModal] = useState(false);
@@ -58,15 +59,26 @@ export default function App() {
 
   const typingTimeoutRef = useRef<number | null>(null);
 
+  const loadMissedCalls = useCallback(async (userId: string) => {
+    const response = await fetch(`/api/calls/missed?userId=${encodeURIComponent(userId)}`);
+    const data = response.ok ? await response.json() : [];
+    setMissedCalls(Array.isArray(data) ? data : []);
+  }, []);
+
   const loadUserConversations = useCallback(async (userId: string) => {
     const response = await fetch(`/api/conversations?userId=${encodeURIComponent(userId)}`);
     const data = response.ok ? await response.json() : [];
     setConversations(Array.isArray(data) ? data : []);
     const requestedConversationId = new URLSearchParams(window.location.search).get('conversation');
+    const requestedCallRequestId = new URLSearchParams(window.location.search).get('call_request');
+    if (requestedCallRequestId) setCurrentTab('notifications');
     setActiveConversationId((currentId) => {
       if (requestedConversationId && Array.isArray(data) && data.some((conversation: Conversation) => conversation.id === requestedConversationId)) {
         window.history.replaceState({}, document.title, window.location.pathname);
         return requestedConversationId;
+      }
+      if (requestedCallRequestId) {
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
       if (currentId && Array.isArray(data) && data.some((conversation: Conversation) => conversation.id === currentId)) {
         return currentId;
@@ -158,6 +170,16 @@ export default function App() {
       console.warn('Không thể đồng bộ thông báo Pinkmess:', error);
     });
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setMissedCalls([]);
+      return;
+    }
+    void loadMissedCalls(currentUser.id).catch((error) => {
+      console.warn('Không thể tải cuộc gọi nhỡ:', error);
+    });
+  }, [currentUser?.id, loadMissedCalls]);
 
   // 2. Fetch Messages when active conversation changes
   useEffect(() => {
@@ -331,9 +353,18 @@ export default function App() {
       setCallState((prev) => ({ ...prev, active: false }));
     };
 
-    const handleCallUnavailable = () => {
+    const handleCallUnavailable = (payload: any) => {
       setCallState((prev) => ({ ...prev, active: false }));
-      window.alert('Người này đang ngoại tuyến, bạn hãy thử lại khi họ online nhé.');
+      if (payload?.offline) {
+        void (currentUser ? loadMissedCalls(currentUser.id) : Promise.resolve());
+        window.alert(
+          payload.notifyQueued
+            ? 'Người ấy đang offline. Pinkmess đã gửi thông báo cuộc gọi tới thiết bị của họ rồi nè 💌'
+            : 'Người ấy đang offline. Pinkmess đã lưu cuộc gọi nhỡ để họ thấy và gọi lại khi mở app nhé 💗'
+        );
+        return;
+      }
+      window.alert('Người này hiện chưa thể nhận cuộc gọi, bạn thử lại sau nhé.');
     };
 
     const handleCallMediaState = (payload: any) => {
@@ -379,7 +410,7 @@ export default function App() {
       socket.off('call:unavailable', handleCallUnavailable);
       socket.off('call:media-state', handleCallMediaState);
     };
-  }, [activeConversationId, currentUser, callState.callId]);
+  }, [activeConversationId, currentUser, callState.callId, loadMissedCalls]);
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
@@ -521,6 +552,21 @@ export default function App() {
       fromUser: currentUser,
       targetUserId: target.id
     });
+  };
+
+  const markMissedCallAsRead = async (request: MissedCallRequest) => {
+    if (!currentUser) return;
+    setMissedCalls((prev) => prev.filter((item) => item.id !== request.id));
+    await fetch(`/api/calls/missed/${encodeURIComponent(request.id)}/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id })
+    }).catch(() => undefined);
+  };
+
+  const handleCallBackFromNotification = (request: MissedCallRequest) => {
+    void markMissedCallAsRead(request);
+    if (request.fromUser) handleStartCall(request.type, request.fromUser);
   };
 
   const handleToggleCallMute = () => {
@@ -852,6 +898,9 @@ export default function App() {
           <NotificationsView
             onOpenStickerStore={() => setCurrentTab('stickers')}
             onOpenMessages={() => setCurrentTab('messages')}
+            missedCalls={missedCalls}
+            onCallBack={handleCallBackFromNotification}
+            onDismissCall={(request) => void markMissedCallAsRead(request)}
           />
         )}
       </div>
