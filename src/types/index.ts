@@ -6,6 +6,7 @@ export type MessageType =
   | 'FILE'
   | 'STICKER'
   | 'GIF'
+  | 'LOCATION'
   | 'SYSTEM';
 
 export type UserStatus = 'online' | 'busy' | 'away' | 'offline';
@@ -55,6 +56,12 @@ export interface Message {
   stickerPackId?: string;
   stickerName?: string;
   isAnimatedSticker?: boolean;
+  fontFamily?: string;
+  locationLatitude?: number;
+  locationLongitude?: number;
+  locationAccuracy?: number;
+  locationMapUrl?: string;
+  locationRequestId?: string;
   audioDuration?: number;
   attachments?: Attachment[];
   reactions?: Record<string, string[]>; // emoji -> array of userIds
