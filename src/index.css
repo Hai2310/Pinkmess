@@ -63,6 +63,14 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
+/* The composer is already a rounded pill; never draw a rectangular browser
+   focus outline around the inner textarea. */
+.pinkmess-composer-input:focus,
+.pinkmess-composer-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .pinkmess-app-bg {
   background:
     radial-gradient(circle at 12% 8%, rgba(255, 214, 229, 0.42), transparent 28%),
