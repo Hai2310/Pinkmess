@@ -148,8 +148,8 @@
         { "id": "openmoji-animals-more-1F43A", "name": "Mặt cáo", "file": "packs/openmoji-animals-more/1F43A.png", "keywords": ["cáo", "fox", "🦊"] },
         { "id": "openmoji-animals-more-1F98A", "name": "Cáo đỏ", "file": "packs/openmoji-animals-more/1F98A.png", "keywords": ["cáo", "fox", "đáng yêu", "🦊"] },
         { "id": "openmoji-animals-more-1F981", "name": "Sư tử", "file": "packs/openmoji-animals-more/1F981.png", "keywords": ["sư tử", "lion", "🦁"] },
-        { "id": "openmoji-animals-more-1F99D", "name": "Đười ươi", "file": "packs/openmoji-animals-more/1F99D.png", "keywords": ["đười ươi", "monkey", "🦝"] },
-        { "id": "openmoji-animals-more-1F99E", "name": "Chồn hôi", "file": "packs/openmoji-animals-more/1F99E.png", "keywords": ["chồn", "skunk", "animal"] }
+        { "id": "openmoji-animals-more-1F99D", "name": "Gấu mèo", "file": "packs/openmoji-animals-more/1F99D.png", "keywords": ["gấu mèo", "raccoon", "🦝"] },
+        { "id": "openmoji-animals-more-1F99E", "name": "Tôm hùm", "file": "packs/openmoji-animals-more/1F99E.png", "keywords": ["tôm", "lobster", "animal"] }
       ]
     },
     {
@@ -167,7 +167,7 @@
         { "id": "openmoji-cats-1F63E", "name": "Mèo giận", "file": "packs/openmoji-cats/1F63E.png", "keywords": ["mèo", "giận", "😾"] },
         { "id": "openmoji-cats-1F63F", "name": "Mèo khóc", "file": "packs/openmoji-cats/1F63F.png", "keywords": ["mèo", "khóc", "😿"] },
         { "id": "openmoji-cats-1F640", "name": "Mèo hú hồn", "file": "packs/openmoji-cats/1F640.png", "keywords": ["mèo", "sốc", "🙀"] },
-        { "id": "openmoji-cats-1F644", "name": "Mèo lườm", "file": "packs/openmoji-cats/1F644.png", "keywords": ["mèo", "lườm", "khịa", "😹"] }
+        { "id": "openmoji-cats-1F644", "name": "Mặt lườm", "file": "packs/openmoji-cats/1F644.png", "keywords": ["lườm", "khịa", "🙄"] }
       ]
     },
     {
@@ -184,8 +184,8 @@
         { "id": "openmoji-bears-wild-1F42F", "name": "Hổ con", "file": "packs/openmoji-bears-wild/1F42F.png", "keywords": ["hổ", "tiger", "🐯"] },
         { "id": "openmoji-bears-wild-1F43A", "name": "Cáo tuyết", "file": "packs/openmoji-bears-wild/1F43A.png", "keywords": ["cáo", "fox", "🦊"] },
         { "id": "openmoji-bears-wild-1F98A", "name": "Cáo đỏ", "file": "packs/openmoji-bears-wild/1F98A.png", "keywords": ["cáo", "cute", "🦊"] },
-        { "id": "openmoji-bears-wild-1F99D", "name": "Bạn đười ươi", "file": "packs/openmoji-bears-wild/1F99D.png", "keywords": ["đười ươi", "bạn bè", "🦝"] },
-        { "id": "openmoji-bears-wild-1F99E", "name": "Chồn hài", "file": "packs/openmoji-bears-wild/1F99E.png", "keywords": ["chồn", "hài", "animal"] }
+        { "id": "openmoji-bears-wild-1F99D", "name": "Gấu mèo", "file": "packs/openmoji-bears-wild/1F99D.png", "keywords": ["gấu mèo", "raccoon", "🦝"] },
+        { "id": "openmoji-bears-wild-1F99E", "name": "Tôm hùm hài", "file": "packs/openmoji-bears-wild/1F99E.png", "keywords": ["tôm", "hài", "lobster"] }
       ]
     },
     {
