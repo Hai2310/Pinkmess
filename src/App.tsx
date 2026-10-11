@@ -11,7 +11,7 @@ import { NewChatModal } from './components/chat/NewChatModal';
 import { CustomStickerModal } from './components/stickers/CustomStickerModal';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { AuthModal } from './components/auth/AuthModal';
-import { User, Conversation, Message, CallState, StickerPack, UserStatus, MissedCallRequest } from './types';
+import { User, Conversation, Message, CallState, StickerPack, UserStatus, MissedCallRequest, LocationSession } from './types';
 import { getSocket } from './lib/socket';
 import { getStickerCatalog } from './lib/stickersData';
 import { loadImportedStickerPacks } from './lib/importedStickers';
@@ -38,6 +38,7 @@ export default function App() {
   const [stickerPacks, setStickerPacks] = useState<StickerPack[]>(getStickerCatalog());
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [missedCalls, setMissedCalls] = useState<MissedCallRequest[]>([]);
+  const [locationSession, setLocationSession] = useState<LocationSession | null>(null);
 
   // Modals state
   const [showNewChatModal, setShowNewChatModal] = useState(false);
@@ -58,7 +59,7 @@ export default function App() {
   });
 
   const typingTimeoutRef = useRef<number | null>(null);
-  const locationConsentHandledRef = useRef<Set<string>>(new Set());
+  const locationWatchersRef = useRef<Map<string, number>>(new Map());
 
   const loadMissedCalls = useCallback(async (userId: string) => {
     const response = await fetch(`/api/calls/missed?userId=${encodeURIComponent(userId)}`);
@@ -194,36 +195,53 @@ export default function App() {
       .catch((err) => console.error('Error fetching messages:', err));
   }, [activeConversationId, currentUser]);
 
-  const sendCurrentLocation = useCallback((conversationId: string, requestId: string) => {
-    if (!currentUser) return;
+  const stopLocationWatcher = useCallback((sessionId: string) => {
+    const watchId = locationWatchersRef.current.get(sessionId);
+    if (watchId === undefined || !navigator.geolocation) return;
+    navigator.geolocation.clearWatch(watchId);
+    locationWatchersRef.current.delete(sessionId);
+  }, []);
+
+  const startLocationWatcher = useCallback((session: LocationSession) => {
+    if (!currentUser || locationWatchersRef.current.has(session.sessionId)) return;
     if (!navigator.geolocation) {
       window.alert('Thiết bị này chưa hỗ trợ định vị. Bạn thử mở Pinkmess bằng Safari hoặc Chrome nhé.');
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
+    setLocationSession((previous) =>
+      previous?.sessionId === session.sessionId
+        ? { ...previous, locations: { ...session.locations, ...previous.locations } }
+        : session
+    );
+
+    const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, accuracy } = position.coords;
-        getSocket().emit('message:send', {
-          id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          conversationId,
-          type: 'LOCATION',
-          content: `📍 Vị trí của ${currentUser.name}`,
-          locationRequestId: requestId,
-          locationLatitude: latitude,
-          locationLongitude: longitude,
-          locationAccuracy: accuracy
+        getSocket().emit('location:update', {
+          sessionId: session.sessionId,
+          conversationId: session.conversationId,
+          latitude,
+          longitude,
+          accuracy
         });
       },
       (error) => {
-        const message = error.code === error.PERMISSION_DENIED
-          ? 'Bạn chưa cho phép Pinkmess dùng vị trí. Hãy bật Location trong cài đặt trình duyệt nhé.'
-          : 'Pinkmess chưa lấy được vị trí hiện tại. Bạn thử lại ở nơi có tín hiệu GPS tốt hơn nhé.';
-        window.alert(message);
+        if (error.code === error.PERMISSION_DENIED) {
+          window.alert('Bạn đã tắt quyền vị trí cho Pinkmess. Hãy bật Location trong cài đặt trình duyệt để tiếp tục chia sẻ nhé.');
+        } else {
+          window.alert('Pinkmess tạm thời chưa lấy được vị trí mới. Bạn kiểm tra GPS hoặc kết nối mạng nhé.');
+        }
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
     );
+    locationWatchersRef.current.set(session.sessionId, watchId);
   }, [currentUser]);
+
+  const stopLocationSharing = useCallback(() => {
+    if (!locationSession) return;
+    getSocket().emit('location:stop', { sessionId: locationSession.sessionId });
+  }, [locationSession]);
 
   // 3. Socket.IO Listeners
   useEffect(() => {
@@ -344,22 +362,54 @@ export default function App() {
     };
 
     const handleLocationRequestSent = () => {
-      window.alert('Đã gửi yêu cầu chia sẻ vị trí. Chờ người kia đồng ý nhé 💗');
+      window.alert('Đã gửi yêu cầu chia sẻ vị trí trực tiếp. Chờ người kia đồng ý nhé 💗');
     };
 
     const handleIncomingLocationRequest = (payload: any) => {
       if (!currentUser || !payload?.requestId || !payload?.requester) return;
       const accepted = window.confirm(
-        `${payload.requester.name} muốn chia sẻ vị trí với bạn. Hai bên đồng ý thì Pinkmess sẽ gửi tọa độ Google Maps một lần. Bạn đồng ý chứ?`
+        `${payload.requester.name} muốn chia sẻ vị trí trực tiếp với bạn. Nếu đồng ý, cả hai sẽ thấy vị trí cập nhật liên tục cho đến khi một bên dừng. Bạn đồng ý chứ?`
       );
       socket.emit('location:respond', { requestId: payload.requestId, accepted });
     };
 
-    const handleLocationConsentGranted = (payload: any) => {
-      if (!currentUser || !payload?.requestId || !payload?.conversationId) return;
-      if (locationConsentHandledRef.current.has(payload.requestId)) return;
-      locationConsentHandledRef.current.add(payload.requestId);
-      sendCurrentLocation(payload.conversationId, payload.requestId);
+    const handleLocationSessionStarted = (payload: any) => {
+      if (!currentUser || !payload?.sessionId || !payload?.conversationId) return;
+      const session: LocationSession = {
+        sessionId: payload.sessionId,
+        conversationId: payload.conversationId,
+        requesterId: payload.requesterId,
+        targetUserId: payload.targetUserId,
+        startedAt: payload.startedAt || new Date().toISOString(),
+        locations: payload.locations || {}
+      };
+      startLocationWatcher(session);
+    };
+
+    const handleLocationUpdated = (payload: any) => {
+      if (!payload?.sessionId || !payload?.userId) return;
+      setLocationSession((previous) => {
+        if (!previous || previous.sessionId !== payload.sessionId) return previous;
+        return {
+          ...previous,
+          locations: {
+            ...previous.locations,
+            [payload.userId]: {
+              latitude: Number(payload.latitude),
+              longitude: Number(payload.longitude),
+              accuracy: Number.isFinite(Number(payload.accuracy)) ? Number(payload.accuracy) : undefined,
+              updatedAt: payload.updatedAt || new Date().toISOString(),
+              mapUrl: payload.mapUrl
+            }
+          }
+        };
+      });
+    };
+
+    const handleLocationSessionStopped = (payload: any) => {
+      if (!payload?.sessionId) return;
+      stopLocationWatcher(payload.sessionId);
+      setLocationSession((previous) => previous?.sessionId === payload.sessionId ? null : previous);
     };
 
     const handleLocationConsentDeclined = () => {
@@ -448,7 +498,9 @@ export default function App() {
     socket.on('typing:status', handleTypingStatus);
     socket.on('location:request-sent', handleLocationRequestSent);
     socket.on('location:incoming-request', handleIncomingLocationRequest);
-    socket.on('location:consent-granted', handleLocationConsentGranted);
+    socket.on('location:session-started', handleLocationSessionStarted);
+    socket.on('location:updated', handleLocationUpdated);
+    socket.on('location:session-stopped', handleLocationSessionStopped);
     socket.on('location:consent-declined', handleLocationConsentDeclined);
     socket.on('location:request-unavailable', handleLocationRequestUnavailable);
     socket.on('presence:update', handlePresenceUpdate);
@@ -471,7 +523,9 @@ export default function App() {
       socket.off('typing:status', handleTypingStatus);
       socket.off('location:request-sent', handleLocationRequestSent);
       socket.off('location:incoming-request', handleIncomingLocationRequest);
-      socket.off('location:consent-granted', handleLocationConsentGranted);
+      socket.off('location:session-started', handleLocationSessionStarted);
+      socket.off('location:updated', handleLocationUpdated);
+      socket.off('location:session-stopped', handleLocationSessionStopped);
       socket.off('location:consent-declined', handleLocationConsentDeclined);
       socket.off('location:request-unavailable', handleLocationRequestUnavailable);
       socket.off('presence:update', handlePresenceUpdate);
@@ -483,7 +537,7 @@ export default function App() {
       socket.off('call:unavailable', handleCallUnavailable);
       socket.off('call:media-state', handleCallMediaState);
     };
-  }, [activeConversationId, currentUser, callState.callId, loadMissedCalls, sendCurrentLocation]);
+  }, [activeConversationId, currentUser, callState.callId, loadMissedCalls, startLocationWatcher, stopLocationWatcher]);
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
@@ -502,6 +556,9 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    locationWatchersRef.current.forEach((watchId) => navigator.geolocation?.clearWatch(watchId));
+    locationWatchersRef.current.clear();
+    setLocationSession(null);
     setIsLoggedIn(false);
     setCurrentUser(null);
     setIsMobileChatOpen(false);
@@ -594,6 +651,11 @@ export default function App() {
     const conversation = conversations.find((item) => item.id === activeConversationId);
     if (!conversation || conversation.type !== 'direct') {
       window.alert('Chia sẻ vị trí hiện chỉ hỗ trợ cuộc trò chuyện riêng tư 1-1 nhé.');
+      return;
+    }
+
+    if (locationSession?.conversationId === activeConversationId) {
+      window.alert('Hai bạn đang chia sẻ vị trí trực tiếp rồi nè. Bạn có thể dừng ở bảng vị trí trong chat nhé.');
       return;
     }
 
@@ -901,6 +963,8 @@ export default function App() {
                 onToggleFavoriteSticker={handleToggleFavoriteSticker}
                 onChangeWallpaper={handleChangeWallpaper}
                 onRequestLocation={handleRequestLocation}
+                locationSession={locationSession?.conversationId === activeConversationId ? locationSession : null}
+                onStopLocationSharing={stopLocationSharing}
               />
             </div>
           </>
