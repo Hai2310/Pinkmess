@@ -126,6 +126,115 @@
         { "id": "openmoji-cute-11", "name": "Tim hai bên", "file": "packs/openmoji-cute/11.png", "keywords": ["tim", "đôi", "💟"] },
         { "id": "openmoji-cute-12", "name": "Thư tình", "file": "packs/openmoji-cute/12.png", "keywords": ["thư", "yêu", "💌"] }
       ]
+    },
+    {
+      "id": "openmoji-animals-more",
+      "name": "OpenMoji Animals More",
+      "displayName": "OpenMoji — Thỏ, Mèo & Muôn Loài",
+      "category": "Animals & Cute",
+      "cover": "packs/openmoji-animals-more/cover.png",
+      "count": 15,
+      "stickers": [
+        { "id": "openmoji-animals-more-1F407", "name": "Thỏ chạy", "file": "packs/openmoji-animals-more/1F407.png", "keywords": ["thỏ", "rabbit", "cute", "🐇"] },
+        { "id": "openmoji-animals-more-1F408", "name": "Mèo đi dạo", "file": "packs/openmoji-animals-more/1F408.png", "keywords": ["mèo", "cat", "🐈"] },
+        { "id": "openmoji-animals-more-1F415", "name": "Cún đáng yêu", "file": "packs/openmoji-animals-more/1F415.png", "keywords": ["chó", "cún", "dog", "🐕"] },
+        { "id": "openmoji-animals-more-1F416", "name": "Heo hồng", "file": "packs/openmoji-animals-more/1F416.png", "keywords": ["heo", "pig", "🐖"] },
+        { "id": "openmoji-animals-more-1F42D", "name": "Chuột tinh nghịch", "file": "packs/openmoji-animals-more/1F42D.png", "keywords": ["chuột", "mouse", "🐭"] },
+        { "id": "openmoji-animals-more-1F430", "name": "Mặt thỏ", "file": "packs/openmoji-animals-more/1F430.png", "keywords": ["thỏ", "bunny", "rabbit", "🐰"] },
+        { "id": "openmoji-animals-more-1F431", "name": "Mặt mèo", "file": "packs/openmoji-animals-more/1F431.png", "keywords": ["mèo", "cat", "🐱"] },
+        { "id": "openmoji-animals-more-1F438", "name": "Ếch xanh", "file": "packs/openmoji-animals-more/1F438.png", "keywords": ["ếch", "frog", "🐸"] },
+        { "id": "openmoji-animals-more-1F439", "name": "Hamster má bánh bao", "file": "packs/openmoji-animals-more/1F439.png", "keywords": ["hamster", "chuột", "cute", "🐹"] },
+        { "id": "openmoji-animals-more-1F42F", "name": "Hổ ngầu", "file": "packs/openmoji-animals-more/1F42F.png", "keywords": ["hổ", "tiger", "🐯"] },
+        { "id": "openmoji-animals-more-1F43A", "name": "Mặt cáo", "file": "packs/openmoji-animals-more/1F43A.png", "keywords": ["cáo", "fox", "🦊"] },
+        { "id": "openmoji-animals-more-1F98A", "name": "Cáo đỏ", "file": "packs/openmoji-animals-more/1F98A.png", "keywords": ["cáo", "fox", "đáng yêu", "🦊"] },
+        { "id": "openmoji-animals-more-1F981", "name": "Sư tử", "file": "packs/openmoji-animals-more/1F981.png", "keywords": ["sư tử", "lion", "🦁"] },
+        { "id": "openmoji-animals-more-1F99D", "name": "Đười ươi", "file": "packs/openmoji-animals-more/1F99D.png", "keywords": ["đười ươi", "monkey", "🦝"] },
+        { "id": "openmoji-animals-more-1F99E", "name": "Chồn hôi", "file": "packs/openmoji-animals-more/1F99E.png", "keywords": ["chồn", "skunk", "animal"] }
+      ]
+    },
+    {
+      "id": "openmoji-cats",
+      "name": "OpenMoji Cat Faces",
+      "displayName": "OpenMoji — Hội Mèo Biểu Cảm",
+      "category": "Cats & Reactions",
+      "cover": "packs/openmoji-cats/cover.png",
+      "count": 8,
+      "stickers": [
+        { "id": "openmoji-cats-1F63A", "name": "Mèo cười", "file": "packs/openmoji-cats/1F63A.png", "keywords": ["mèo", "cười", "😺"] },
+        { "id": "openmoji-cats-1F63B", "name": "Mèo cười tít", "file": "packs/openmoji-cats/1F63B.png", "keywords": ["mèo", "vui", "😻"] },
+        { "id": "openmoji-cats-1F63C", "name": "Mèo đểu", "file": "packs/openmoji-cats/1F63C.png", "keywords": ["mèo", "đểu", "😼"] },
+        { "id": "openmoji-cats-1F63D", "name": "Mèo hôn", "file": "packs/openmoji-cats/1F63D.png", "keywords": ["mèo", "hôn", "😽"] },
+        { "id": "openmoji-cats-1F63E", "name": "Mèo giận", "file": "packs/openmoji-cats/1F63E.png", "keywords": ["mèo", "giận", "😾"] },
+        { "id": "openmoji-cats-1F63F", "name": "Mèo khóc", "file": "packs/openmoji-cats/1F63F.png", "keywords": ["mèo", "khóc", "😿"] },
+        { "id": "openmoji-cats-1F640", "name": "Mèo hú hồn", "file": "packs/openmoji-cats/1F640.png", "keywords": ["mèo", "sốc", "🙀"] },
+        { "id": "openmoji-cats-1F644", "name": "Mèo lườm", "file": "packs/openmoji-cats/1F644.png", "keywords": ["mèo", "lườm", "khịa", "😹"] }
+      ]
+    },
+    {
+      "id": "openmoji-bears-wild",
+      "name": "OpenMoji Bears & Wild Friends",
+      "displayName": "OpenMoji — Gấu, Panda & Bạn Rừng",
+      "category": "Bears & Animals",
+      "cover": "packs/openmoji-bears-wild/cover.png",
+      "count": 8,
+      "stickers": [
+        { "id": "openmoji-bears-wild-1F43B", "name": "Gấu nâu", "file": "packs/openmoji-bears-wild/1F43B.png", "keywords": ["gấu", "bear", "🐻"] },
+        { "id": "openmoji-bears-wild-1F43C", "name": "Gấu trúc", "file": "packs/openmoji-bears-wild/1F43C.png", "keywords": ["gấu trúc", "panda", "🐼"] },
+        { "id": "openmoji-bears-wild-1F981", "name": "Sư tử béo", "file": "packs/openmoji-bears-wild/1F981.png", "keywords": ["sư tử", "lion", "ngầu", "🦁"] },
+        { "id": "openmoji-bears-wild-1F42F", "name": "Hổ con", "file": "packs/openmoji-bears-wild/1F42F.png", "keywords": ["hổ", "tiger", "🐯"] },
+        { "id": "openmoji-bears-wild-1F43A", "name": "Cáo tuyết", "file": "packs/openmoji-bears-wild/1F43A.png", "keywords": ["cáo", "fox", "🦊"] },
+        { "id": "openmoji-bears-wild-1F98A", "name": "Cáo đỏ", "file": "packs/openmoji-bears-wild/1F98A.png", "keywords": ["cáo", "cute", "🦊"] },
+        { "id": "openmoji-bears-wild-1F99D", "name": "Bạn đười ươi", "file": "packs/openmoji-bears-wild/1F99D.png", "keywords": ["đười ươi", "bạn bè", "🦝"] },
+        { "id": "openmoji-bears-wild-1F99E", "name": "Chồn hài", "file": "packs/openmoji-bears-wild/1F99E.png", "keywords": ["chồn", "hài", "animal"] }
+      ]
+    },
+    {
+      "id": "openmoji-funny-more",
+      "name": "OpenMoji Funny More",
+      "displayName": "OpenMoji — Hài Hước & Cà Khịa",
+      "category": "Funny & Meme",
+      "cover": "packs/openmoji-funny-more/cover.png",
+      "count": 14,
+      "stickers": [
+        { "id": "openmoji-funny-more-1F602", "name": "Cười ra nước mắt", "file": "packs/openmoji-funny-more/1F602.png", "keywords": ["hài", "haha", "🤣"] },
+        { "id": "openmoji-funny-more-1F605", "name": "Cười tươi", "file": "packs/openmoji-funny-more/1F605.png", "keywords": ["cười", "vui", "😅"] },
+        { "id": "openmoji-funny-more-1F61B", "name": "Lêu lêu", "file": "packs/openmoji-funny-more/1F61B.png", "keywords": ["lêu lêu", "trêu", "😛"] },
+        { "id": "openmoji-funny-more-1F61C", "name": "Nhăn nhở", "file": "packs/openmoji-funny-more/1F61C.png", "keywords": ["hài", "nhăn", "😜"] },
+        { "id": "openmoji-funny-more-1F61D", "name": "Mặt hề", "file": "packs/openmoji-funny-more/1F61D.png", "keywords": ["hề", "bựa", "🤪"] },
+        { "id": "openmoji-funny-more-1F624", "name": "Cọc rồi nha", "file": "packs/openmoji-funny-more/1F624.png", "keywords": ["giận", "cọc", "😤"] },
+        { "id": "openmoji-funny-more-1F62D", "name": "Khóc lụt nhà", "file": "packs/openmoji-funny-more/1F62D.png", "keywords": ["khóc", "buồn", "😭"] },
+        { "id": "openmoji-funny-more-1F631", "name": "Hú hồn chim én", "file": "packs/openmoji-funny-more/1F631.png", "keywords": ["sốc", "sợ", "😱"] },
+        { "id": "openmoji-funny-more-1F633", "name": "Ngại muốn xỉu", "file": "packs/openmoji-funny-more/1F633.png", "keywords": ["ngại", "đỏ mặt", "😳"] },
+        { "id": "openmoji-funny-more-1F914", "name": "Để tui nghĩ", "file": "packs/openmoji-funny-more/1F914.png", "keywords": ["nghĩ", "hmm", "🤔"] },
+        { "id": "openmoji-funny-more-1F923", "name": "Cười xỉu", "file": "packs/openmoji-funny-more/1F923.png", "keywords": ["cười", "xỉu", "🤣"] },
+        { "id": "openmoji-funny-more-1F92A", "name": "Mặt lầy", "file": "packs/openmoji-funny-more/1F92A.png", "keywords": ["lầy", "bựa", "🤪"] },
+        { "id": "openmoji-funny-more-1F971", "name": "Mệt ngang", "file": "packs/openmoji-funny-more/1F971.png", "keywords": ["mệt", "buồn ngủ", "🥱"] },
+        { "id": "openmoji-funny-more-1F972", "name": "Cảm động quá", "file": "packs/openmoji-funny-more/1F972.png", "keywords": ["cảm động", "vui", "🥲"] }
+      ]
+    },
+    {
+      "id": "openmoji-love-couple",
+      "name": "OpenMoji Love & Couple",
+      "displayName": "OpenMoji — Cặp Đôi & Tim Yêu",
+      "category": "Love & Romance",
+      "cover": "packs/openmoji-love-couple/cover.png",
+      "count": 14,
+      "stickers": [
+        { "id": "openmoji-love-couple-1F48C", "name": "Thư tình", "file": "packs/openmoji-love-couple/1F48C.png", "keywords": ["yêu", "thư tình", "💌"] },
+        { "id": "openmoji-love-couple-1F48F", "name": "Hôn nhau", "file": "packs/openmoji-love-couple/1F48F.png", "keywords": ["hôn", "cặp đôi", "💏"] },
+        { "id": "openmoji-love-couple-1F491", "name": "Cặp đôi bên nhau", "file": "packs/openmoji-love-couple/1F491.png", "keywords": ["cặp đôi", "tình yêu", "💑"] },
+        { "id": "openmoji-love-couple-1F495", "name": "Hai trái tim", "file": "packs/openmoji-love-couple/1F495.png", "keywords": ["tim", "đôi", "💕"] },
+        { "id": "openmoji-love-couple-1F496", "name": "Tim lấp lánh", "file": "packs/openmoji-love-couple/1F496.png", "keywords": ["tim", "lấp lánh", "💖"] },
+        { "id": "openmoji-love-couple-1F497", "name": "Tim bay", "file": "packs/openmoji-love-couple/1F497.png", "keywords": ["tim", "yêu", "💗"] },
+        { "id": "openmoji-love-couple-1F498", "name": "Tim nơ", "file": "packs/openmoji-love-couple/1F498.png", "keywords": ["tim", "quà", "💘"] },
+        { "id": "openmoji-love-couple-1F499", "name": "Tim xanh", "file": "packs/openmoji-love-couple/1F499.png", "keywords": ["tim", "xanh", "💙"] },
+        { "id": "openmoji-love-couple-1F49A", "name": "Tim xanh lá", "file": "packs/openmoji-love-couple/1F49A.png", "keywords": ["tim", "xanh lá", "💚"] },
+        { "id": "openmoji-love-couple-1F49B", "name": "Tim vàng", "file": "packs/openmoji-love-couple/1F49B.png", "keywords": ["tim", "vàng", "💛"] },
+        { "id": "openmoji-love-couple-1F49C", "name": "Tim tím", "file": "packs/openmoji-love-couple/1F49C.png", "keywords": ["tim", "tím", "💜"] },
+        { "id": "openmoji-love-couple-1F49D", "name": "Tim hộp quà", "file": "packs/openmoji-love-couple/1F49D.png", "keywords": ["tim", "quà", "💝"] },
+        { "id": "openmoji-love-couple-1F49E", "name": "Tim xoay", "file": "packs/openmoji-love-couple/1F49E.png", "keywords": ["tim", "đôi", "💞"] },
+        { "id": "openmoji-love-couple-1F49F", "name": "Tim trang trí", "file": "packs/openmoji-love-couple/1F49F.png", "keywords": ["tim", "trang trí", "💟"] }
+      ]
     }
   ]
 }
