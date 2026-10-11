@@ -1,0 +1,19 @@
+{
+  "name": "HustMess — Bunny Edition",
+  "short_name": "HustMess Bunny",
+  "description": "Nhắn một chút, thương một chút! 🐰💕",
+  "lang": "vi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffdfb",
+  "theme_color": "#fff0f6",
+  "icons": [
+    {
+      "src": "/src/assets/images/bunny_mascot_hero_1791670247958.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "HustMess — Bunny Edition",
+  "description": "The Cutest Pink Real-Time Messaging & Video Calling Platform. Nhắn một chút, thương một chút! 🐰💕",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "display-capture"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
