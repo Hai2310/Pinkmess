@@ -93,6 +93,7 @@ export interface Conversation {
   unreadCount?: number;
   isPinned?: boolean;
   isMuted?: boolean;
+  nicknames?: Record<string, string>;
   wallpaper?: string;
   createdAt: string;
   updatedAt: string;
