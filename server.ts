@@ -280,6 +280,12 @@ interface ServerMessage {
   stickerPackId?: string;
   stickerName?: string;
   isAnimatedSticker?: boolean;
+  fontFamily?: string;
+  locationLatitude?: number;
+  locationLongitude?: number;
+  locationAccuracy?: number;
+  locationMapUrl?: string;
+  locationRequestId?: string;
   audioDuration?: number;
   attachments?: any[];
   reactions?: Record<string, any>;
@@ -530,6 +536,17 @@ async function startServer() {
   const socketToUser = new Map<string, string>();
   const userToSockets = new Map<string, Set<string>>();
   const activeCalls = new Map<string, { fromUserId: string; targetUserId: string }>();
+  const locationRequests = new Map<
+    string,
+    {
+      id: string;
+      conversationId: string;
+      requesterId: string;
+      targetUserId: string;
+      status: 'pending' | 'accepted';
+      createdAt: string;
+    }
+  >();
 
   const emitToUser = (userId: string | undefined, event: string, payload: any) => {
     if (!userId) return;
@@ -742,6 +759,30 @@ async function startServer() {
       const conversation = getConversation(messagePayload.conversationId);
       if (!senderId || !conversation?.participants.includes(senderId)) return;
       const sender = db.users.find((user) => user.id === senderId);
+      const locationLatitude = messagePayload.type === 'LOCATION' ? Number(messagePayload.locationLatitude) : undefined;
+      const locationLongitude = messagePayload.type === 'LOCATION' ? Number(messagePayload.locationLongitude) : undefined;
+      const locationRequestId = typeof messagePayload.locationRequestId === 'string'
+        ? messagePayload.locationRequestId
+        : '';
+      const locationRequest = locationRequests.get(locationRequestId);
+      const hasValidLocation =
+        Number.isFinite(locationLatitude) &&
+        Number.isFinite(locationLongitude) &&
+        (locationLatitude ?? 0) >= -90 &&
+        (locationLatitude ?? 0) <= 90 &&
+        (locationLongitude ?? 0) >= -180 &&
+        (locationLongitude ?? 0) <= 180;
+      if (messagePayload.type === 'LOCATION' && !hasValidLocation) return;
+      if (
+        messagePayload.type === 'LOCATION' &&
+        (!locationRequest ||
+          locationRequest.status !== 'accepted' ||
+          locationRequest.conversationId !== conversation.id ||
+          (senderId !== locationRequest.requesterId && senderId !== locationRequest.targetUserId))
+      ) {
+        return;
+      }
+
       const newMsg = {
         id: messagePayload.id || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         conversationId: messagePayload.conversationId,
@@ -755,6 +796,18 @@ async function startServer() {
         stickerPackId: messagePayload.stickerPackId,
         stickerName: messagePayload.stickerName,
         isAnimatedSticker: messagePayload.isAnimatedSticker,
+        fontFamily: typeof messagePayload.fontFamily === 'string' ? messagePayload.fontFamily.slice(0, 160) : undefined,
+        locationLatitude: hasValidLocation ? locationLatitude : undefined,
+        locationLongitude: hasValidLocation ? locationLongitude : undefined,
+        locationAccuracy: hasValidLocation && Number.isFinite(Number(messagePayload.locationAccuracy))
+          ? Math.max(0, Number(messagePayload.locationAccuracy))
+          : undefined,
+        locationMapUrl: hasValidLocation
+          ? `https://www.google.com/maps?q=${locationLatitude ?? 0},${locationLongitude ?? 0}`
+          : undefined,
+        locationRequestId: hasValidLocation && locationRequestId
+          ? locationRequestId.slice(0, 120)
+          : undefined,
         audioDuration: messagePayload.audioDuration,
         attachments: messagePayload.attachments,
         reactions: {},
@@ -778,6 +831,8 @@ async function startServer() {
               ? '🖼️ [Ảnh]'
               : newMsg.type === 'FILE'
               ? `📎 ${newMsg.attachments?.[0]?.name || 'Tệp đính kèm'}`
+              : newMsg.type === 'LOCATION'
+              ? '📍 Đã chia sẻ vị trí'
               : newMsg.content,
           type: newMsg.type,
           senderName: newMsg.senderName,
@@ -864,6 +919,74 @@ async function startServer() {
       const actorId = socketToUser.get(socket.id);
       if (!actorId || actorId !== userId || !isConversationMember(conversationId, actorId)) return;
       emitToConversation(conversationId, 'typing:status', { conversationId, userId, isTyping: false }, socket.id);
+    });
+
+    // One-time location sharing. Both people must explicitly accept before
+    // either browser is asked for GPS permission.
+    socket.on('location:request', (payload: any) => {
+      const requesterId = socketToUser.get(socket.id);
+      const conversation = getConversation(String(payload?.conversationId || ''));
+      if (!requesterId || !conversation || conversation.type !== 'direct' || !conversation.participants.includes(requesterId)) return;
+
+      const targetUserId = conversation.participants.find((userId) => userId !== requesterId);
+      if (!targetUserId) return;
+
+      const request = {
+        id: `location_request_${Date.now()}_${randomBytes(3).toString('hex')}`,
+        conversationId: conversation.id,
+        requesterId,
+        targetUserId,
+        status: 'pending' as const,
+        createdAt: new Date().toISOString()
+      };
+      locationRequests.set(request.id, request);
+      socket.emit('location:request-sent', { requestId: request.id, conversationId: conversation.id });
+
+      if (!userToSockets.has(targetUserId)) {
+        socket.emit('location:request-unavailable', {
+          requestId: request.id,
+          message: 'Người kia cần online để xác nhận chia sẻ vị trí.'
+        });
+        locationRequests.delete(request.id);
+        return;
+      }
+
+      const requester = db.users.find((user) => user.id === requesterId);
+      emitToUser(targetUserId, 'location:incoming-request', {
+        requestId: request.id,
+        conversationId: conversation.id,
+        requester: requester ? toPublicUser(requester) : null
+      });
+
+      setTimeout(() => {
+        if (locationRequests.get(request.id)?.status === 'pending') locationRequests.delete(request.id);
+      }, 10 * 60 * 1000);
+    });
+
+    socket.on('location:respond', (payload: any) => {
+      const request = locationRequests.get(String(payload?.requestId || ''));
+      const responderId = socketToUser.get(socket.id);
+      if (!request || !responderId || responderId !== request.targetUserId) return;
+
+      if (!payload?.accepted) {
+        emitToUser(request.requesterId, 'location:consent-declined', {
+          requestId: request.id,
+          conversationId: request.conversationId
+        });
+        locationRequests.delete(request.id);
+        return;
+      }
+
+      request.status = 'accepted';
+      const consentPayload = {
+        requestId: request.id,
+        conversationId: request.conversationId,
+        requesterId: request.requesterId,
+        targetUserId: request.targetUserId
+      };
+      emitToUser(request.requesterId, 'location:consent-granted', consentPayload);
+      emitToUser(request.targetUserId, 'location:consent-granted', consentPayload);
+      setTimeout(() => locationRequests.delete(request.id), 5 * 60 * 1000);
     });
 
     // WebRTC Calling Signaling
