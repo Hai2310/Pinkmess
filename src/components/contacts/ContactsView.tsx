@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, MessageSquare, Phone, Video, UserPlus, Heart, Check, Sparkles } from 'lucide-react';
 import { User } from '../../types';
 
@@ -18,10 +18,45 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'online'>('all');
   const [addedFriends, setAddedFriends] = useState<string[]>([]);
+  const [remoteSearchResults, setRemoteSearchResults] = useState<User[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
   const otherUsers = users.filter((u) => u.id !== currentUser.id);
 
-  const filtered = otherUsers.filter((u) => {
+  // Search the server too, so a newly registered or unfamiliar user appears
+  // even when they were not in this browser's initial user list.
+  useEffect(() => {
+    const q = search.toLowerCase().trim().replace(/^@/, '');
+    if (!q) {
+      setRemoteSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const response = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
+        if (response.ok) setRemoteSearchResults(await response.json());
+      } catch (error) {
+        if ((error as DOMException).name !== 'AbortError') console.warn('Không thể tìm kiếm người dùng:', error);
+      } finally {
+        if (!controller.signal.aborted) setIsSearching(false);
+      }
+    }, 180);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [search]);
+
+  const searchableUsers = remoteSearchResults
+    ? Array.from(new Map([...otherUsers, ...remoteSearchResults].map((user) => [user.id, user])).values())
+    : otherUsers;
+
+  const filtered = searchableUsers.filter((u) => {
     const q = search.toLowerCase().trim().replace(/^@/, '');
     const matchesSearch =
       !q ||
@@ -54,7 +89,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Tìm theo Tên hoặc Bunny ID (VD: linh_meo)..."
+                placeholder="Tìm tên, Bunny ID hoặc ID người lạ..."
                 className="w-full bg-white text-xs text-[#4C3441] placeholder:text-[#927D8A]/70 pl-10 pr-4 py-2 rounded-2xl border border-[#F7DDE8] focus:border-[#FF82AE] focus:outline-none shadow-2xs"
               />
             </div>
@@ -83,6 +118,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
 
       {/* Friends Cards Grid */}
       <div className="p-6 md:p-8 flex-1">
+        {isSearching && <p className="mb-3 text-xs text-[#927D8A]">Đang tìm trong toàn bộ người dùng...</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((user) => {
             const isFriend = addedFriends.includes(user.id);
@@ -156,6 +192,11 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
             );
           })}
         </div>
+        {!isSearching && filtered.length === 0 && (
+          <div className="py-12 text-center text-sm text-[#927D8A]">
+            Không tìm thấy người dùng theo tên hoặc ID này.
+          </div>
+        )}
       </div>
     </div>
   );

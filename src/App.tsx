@@ -643,9 +643,7 @@ export default function App() {
           <ContactsView
             users={users}
             currentUser={currentUser}
-            onStartChat={(targetUser) => {
-              handleCreateConversation('direct', targetUser.name, [currentUser.id, targetUser.id]);
-            }}
+            onStartChat={handleOpenUserChat}
             onStartCall={(targetUser, type) => handleStartCall(type, targetUser)}
           />
         )}

@@ -49,7 +49,7 @@ const toKeywords = (sticker: ImportedSticker, pack: ImportedPack) => [
 ].filter(Boolean);
 
 export async function loadImportedStickerPacks(): Promise<StickerPack[]> {
-  const loaded = await Promise.all(
+  const loaded = await Promise.allSettled(
     collections.map(async (collection) => {
       const response = await fetch(collection.manifestUrl);
       if (!response.ok) throw new Error(`Không thể tải ${collection.manifestUrl}`);
@@ -59,8 +59,16 @@ export async function loadImportedStickerPacks(): Promise<StickerPack[]> {
     })
   );
 
-  return loaded.flatMap(({ collection, manifest }) =>
-    manifest.packs.map((pack) => {
+  return loaded.flatMap((result) => {
+    if (result.status !== 'fulfilled') {
+      console.warn('Không thể tải một kho sticker ZIP:', result.reason);
+      return [];
+    }
+
+    const { collection, manifest } = result.value;
+    const assetRoot = (manifest.assetBasePath || collection.assetRoot).replace(/\/$/, '');
+
+    return manifest.packs.map((pack) => {
       const packId = `${manifest.collectionId}_${pack.id}`;
       const stickers = pack.stickers.map((sticker, index) => ({
         id: `${manifest.collectionId}_${sticker.id}`,
@@ -69,7 +77,7 @@ export async function loadImportedStickerPacks(): Promise<StickerPack[]> {
         keywords: toKeywords(sticker, pack),
         emotion: pack.category || 'cute',
         svgContent: '',
-        imageUrl: `${collection.assetRoot}/${sticker.file}`,
+        imageUrl: `${assetRoot}/${sticker.file}`,
         isAnimated: Boolean(sticker.animated || pack.animated),
         sortOrder: index + 1
       }));
@@ -80,15 +88,15 @@ export async function loadImportedStickerPacks(): Promise<StickerPack[]> {
         slug: `${manifest.collectionId}-${pack.id}`,
         description: `${manifest.description} · ${pack.name}`,
         coverSvg: '',
-        coverImage: `${collection.assetRoot}/${pack.cover}`,
+        coverImage: `${assetRoot}/${pack.cover}`,
         category: pack.category || 'Bộ sưu tập',
         author: collection.author,
-        stickersCount: pack.count || stickers.length,
+        stickersCount: stickers.length,
         isOfficial: true,
         isAnimated: Boolean(pack.animated),
         createdAt: new Date().toISOString(),
         stickers
       };
-    })
-  );
+    });
+  });
 }

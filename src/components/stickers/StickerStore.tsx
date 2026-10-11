@@ -29,6 +29,7 @@ export const StickerStore: React.FC<StickerStoreProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewPack, setPreviewPack] = useState<StickerPack | null>(null);
+  const totalStickerCount = packs.reduce((total, pack) => total + pack.stickers.length, 0);
 
   const categories = [
     { id: 'all', label: 'Tất cả' },
@@ -68,7 +69,7 @@ export const StickerStore: React.FC<StickerStoreProps> = ({
             Thế giới Sticker 🐰💕
           </h1>
           <p className="text-sm md:text-base text-[#927D8A] font-medium max-w-xl">
-            Một chút đáng yêu cho mọi cuộc trò chuyện! Hơn 160+ sticker hoạt hoạ được tuyển chọn riêng cho Pinkmess.
+            Một chút đáng yêu cho mọi cuộc trò chuyện! Đầy đủ {packs.length} bộ với {totalStickerCount} sticker từ hai kho ZIP của bạn.
           </p>
 
           {/* Action Row */}

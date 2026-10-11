@@ -747,6 +747,22 @@ async function startServer() {
   });
 
   // Users
+  app.get('/api/users/search', (req, res) => {
+    const q = String(req.query.q || '').toLowerCase().trim().replace(/^@/, '');
+    if (!q) return res.json([]);
+
+    const matches = db.users
+      .filter((user: any) =>
+        user.name?.toLowerCase().includes(q) ||
+        user.bunnyId?.toLowerCase().includes(q) ||
+        user.id?.toLowerCase().includes(q)
+      )
+      .slice(0, 50)
+      .map(toPublicUser);
+
+    res.json(matches);
+  });
+
   app.get('/api/users', (req, res) => {
     res.json(db.users.map(toPublicUser));
   });
