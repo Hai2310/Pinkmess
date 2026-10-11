@@ -68,7 +68,7 @@ export const StickerStore: React.FC<StickerStoreProps> = ({
             Thế giới Sticker 🐰💕
           </h1>
           <p className="text-sm md:text-base text-[#927D8A] font-medium max-w-xl">
-            Một chút đáng yêu cho mọi cuộc trò chuyện! Hơn 160+ sticker hoạt hoạ bản quyền gốc được vẽ riêng cho HustMess Bunny Edition.
+            Một chút đáng yêu cho mọi cuộc trò chuyện! Hơn 160+ sticker hoạt hoạ được tuyển chọn riêng cho Pinkmess.
           </p>
 
           {/* Action Row */}

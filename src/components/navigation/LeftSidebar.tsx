@@ -62,9 +62,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   };
 
   return (
-    <aside className="w-20 md:w-64 bg-[#FFFDFB] border-r border-[#F7DDE8] flex flex-col justify-between shrink-0 select-none shadow-[2px_0_12px_rgba(255,130,174,0.06)] z-20">
+    <aside className="w-full h-[76px] order-2 bg-white/95 border-t border-[#F7DDE8] flex flex-row justify-between shrink-0 select-none shadow-[0_-8px_24px_rgba(255,130,174,0.08)] z-30 backdrop-blur-xl md:order-none md:w-64 lg:w-72 md:h-full md:flex-col md:border-t-0 md:border-r md:shadow-[2px_0_12px_rgba(255,130,174,0.06)] md:bg-[#FFFDFB]">
       {/* Brand Header */}
-      <div className="p-4 md:p-5 flex items-center gap-3 border-b border-[#F7DDE8]/80 bg-gradient-to-b from-[#FFF0F6]/80 to-transparent">
+      <div className="hidden md:flex p-4 md:p-5 items-center gap-3 border-b border-[#F7DDE8]/80 bg-gradient-to-b from-[#FFF0F6]/80 to-transparent">
         <div className="relative group cursor-pointer">
           <div className="w-11 h-11 rounded-2xl bg-[#FFE4F0] border-2 border-[#FF82AE] flex items-center justify-center shadow-sm overflow-hidden transform group-hover:scale-105 transition-transform duration-200">
             <img
@@ -77,9 +77,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         </div>
         <div className="hidden md:block">
           <div className="flex items-center gap-1.5">
-            <h1 className="font-bold text-lg text-[#4C3441] tracking-tight">HustMess</h1>
+            <h1 className="font-bold text-lg text-[#4C3441] tracking-tight">Pinkmess</h1>
             <span className="text-[10px] font-semibold tracking-wider text-[#FF4F8B] bg-[#FFE4F0] px-1.5 py-0.5 rounded-full uppercase border border-[#FFD6E5]">
-              Bunny
+              CHAT
             </span>
           </div>
           <p className="text-[11px] text-[#927D8A] truncate font-medium">Nhắn một chút, thương một chút! 🐰💕</p>
@@ -87,7 +87,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       </div>
 
       {/* Navigation List */}
-      <nav className="flex-1 py-4 px-2 md:px-3 space-y-1.5 overflow-y-auto">
+      <nav className="flex-1 flex items-center justify-around gap-1 px-2 py-2 overflow-hidden md:block md:py-4 md:px-3 md:space-y-1.5 md:overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
@@ -101,14 +101,14 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   onSelectTab(item.id);
                 }
               }}
-              className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-2xl font-medium text-sm transition-all duration-200 group text-left relative ${
+                className={`w-full flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 rounded-2xl font-medium text-sm transition-all duration-200 group text-left relative md:flex-row md:justify-start md:gap-3.5 md:px-3 md:py-2.5 ${
                 isActive
-                  ? 'bg-gradient-to-r from-[#FF82AE] to-[#FF6F9F] text-white shadow-md shadow-[#FF82AE]/30 font-semibold'
+                    ? 'bg-gradient-to-r from-[#FF82AE] to-[#FF6F9F] text-white shadow-md shadow-[#FF82AE]/30 font-semibold'
                   : 'text-[#4C3441] hover:bg-[#FFF0F6] hover:text-[#FF4F8B]'
               }`}
             >
               <div
-                className={`p-1.5 rounded-xl transition-colors ${
+                  className={`p-2 rounded-xl transition-colors md:p-1.5 ${
                   isActive
                     ? 'bg-white/20 text-white'
                     : 'bg-[#FFF0F6] text-[#FF82AE] group-hover:bg-[#FFE4F0] group-hover:text-[#FF4F8B]'
@@ -135,7 +135,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       </nav>
 
       {/* Bottom User Profile & Switcher */}
-      <div className="p-3 border-t border-[#F7DDE8] relative bg-[#FFF0F6]/40">
+      <div className="hidden md:block p-3 border-t border-[#F7DDE8] relative bg-[#FFF0F6]/40">
         {/* User Switch Popup */}
         {showUserMenu && (
           <div className="absolute bottom-full left-2 right-2 mb-2 bg-white rounded-2xl p-2.5 shadow-xl border border-[#F7DDE8] z-50 text-xs">

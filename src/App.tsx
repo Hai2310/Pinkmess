@@ -27,6 +27,7 @@ export default function App() {
   });
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [stickerPacks, setStickerPacks] = useState<StickerPack[]>(getStickerCatalog());
   const [typingUser, setTypingUser] = useState<string | null>(null);
@@ -286,6 +287,7 @@ export default function App() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setCurrentUser(null);
+    setIsMobileChatOpen(false);
     localStorage.removeItem('hustmess_logged_in');
     localStorage.removeItem('hustmess_user_id');
   };
@@ -529,7 +531,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex bg-[#FFFDFB]">
+    <div className="pinkmess-app-bg h-[100dvh] w-screen overflow-hidden flex flex-col md:flex-row">
       {/* Left Navigation Bar */}
       <LeftSidebar
         currentTab={currentTab}
@@ -543,36 +545,44 @@ export default function App() {
       />
 
       {/* Main View Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden order-1 md:order-none">
         {currentTab === 'messages' && (
           <>
-            <ChatListPanel
-              conversations={conversations}
-              activeConversationId={activeConversationId}
-              onSelectConversation={setActiveConversationId}
-              onNewChat={() => setShowNewChatModal(true)}
-              users={users}
-              currentUserId={currentUser.id}
-            />
-            <ChatWindow
-              conversation={activeConversation}
-              messages={messages}
-              currentUser={currentUser}
-              allUsers={users}
-              onSendMessage={handleSendMessage}
-              onEditMessage={handleEditMessage}
-              onDeleteMessage={handleDeleteMessage}
-              onPinMessage={handlePinMessage}
-              onReactMessage={handleReactMessage}
-              onStartCall={(type, targetUser) => handleStartCall(type, targetUser)}
-              typingUser={typingUser}
-              onTyping={handleTyping}
-              stickerPacks={stickerPacks}
-              favoriteStickers={currentUser.favoriteStickers || []}
-              recentStickers={['p1_stk_1', 'p1_stk_2', 'panim1_stk_1', 'p2_stk_1']}
-              onToggleFavoriteSticker={handleToggleFavoriteSticker}
-              onChangeWallpaper={handleChangeWallpaper}
-            />
+            <div className={`${isMobileChatOpen ? 'hidden md:flex' : 'flex'} min-w-0 w-full md:w-auto`}>
+              <ChatListPanel
+                conversations={conversations}
+                activeConversationId={activeConversationId}
+                onSelectConversation={(id) => {
+                  setActiveConversationId(id);
+                  setIsMobileChatOpen(true);
+                }}
+                onNewChat={() => setShowNewChatModal(true)}
+                users={users}
+                currentUserId={currentUser.id}
+              />
+            </div>
+            <div className={`${isMobileChatOpen ? 'flex' : 'hidden md:flex'} min-w-0 flex-1`}>
+              <ChatWindow
+                conversation={activeConversation}
+                messages={messages}
+                currentUser={currentUser}
+                allUsers={users}
+                onBackToList={() => setIsMobileChatOpen(false)}
+                onSendMessage={handleSendMessage}
+                onEditMessage={handleEditMessage}
+                onDeleteMessage={handleDeleteMessage}
+                onPinMessage={handlePinMessage}
+                onReactMessage={handleReactMessage}
+                onStartCall={(type, targetUser) => handleStartCall(type, targetUser)}
+                typingUser={typingUser}
+                onTyping={handleTyping}
+                stickerPacks={stickerPacks}
+                favoriteStickers={currentUser.favoriteStickers || []}
+                recentStickers={['p1_stk_1', 'p1_stk_2', 'panim1_stk_1', 'p2_stk_1']}
+                onToggleFavoriteSticker={handleToggleFavoriteSticker}
+                onChangeWallpaper={handleChangeWallpaper}
+              />
+            </div>
           </>
         )}
 

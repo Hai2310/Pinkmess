@@ -44,7 +44,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#4C3441]">Những Người Bạn Dễ Thương</h1>
           <p className="text-xs md:text-sm text-[#927D8A] mt-1">
-            Kết nối, trò chuyện và cùng nhau chia sẻ những khoảnh khắc ngọt ngào với HustMess Bunny Edition!
+            Kết nối, trò chuyện và cùng nhau chia sẻ những khoảnh khắc ngọt ngào với Pinkmess!
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-4">

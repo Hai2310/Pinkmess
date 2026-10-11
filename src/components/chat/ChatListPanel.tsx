@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Plus, Pin, BellOff, Heart, MessageCirclePlus, Sparkles } from 'lucide-react';
+import { Search, Plus, Pin, BellOff, MessageCircleHeart, SlidersHorizontal } from 'lucide-react';
 import { Conversation, User } from '../../types';
 
 interface ChatListPanelProps {
@@ -42,18 +42,25 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
   });
 
   return (
-    <div className="w-80 md:w-88 bg-[#FFFDFB] border-r border-[#F7DDE8] flex flex-col h-full shrink-0 relative select-none">
+    <div className="w-full md:w-[360px] lg:w-[390px] bg-[#FFFDFB] md:border-r border-[#F7DDE8] flex flex-col h-full min-h-0 shrink-0 relative select-none">
       {/* Header & Search */}
-      <div className="p-4 border-b border-[#F7DDE8]/80 bg-gradient-to-b from-[#FFF0F6]/40 to-transparent">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-[#4C3441] tracking-tight">Trò chuyện</h2>
-            <span className="text-sm">🐰</span>
+      <div className="px-4 pt-4 pb-3 border-b border-[#F7DDE8]/80 bg-gradient-to-b from-[#FFF0F6]/70 via-[#FFFDFB] to-transparent">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#FF82AE] to-[#FF4F8B] text-white flex items-center justify-center shadow-sm shadow-[#FF82AE]/30">
+                <MessageCircleHeart className="w-4 h-4" />
+              </div>
+              <span className="md:hidden text-xs font-bold uppercase tracking-[0.18em] text-[#FF4F8B]">Pinkmess</span>
+            </div>
+            <h2 className="text-[23px] font-black text-[#4C3441] tracking-tight">Tin nhắn</h2>
+            <p className="text-xs text-[#927D8A] mt-0.5">Những cuộc trò chuyện ngọt ngào của bạn</p>
           </div>
           <button
             onClick={onNewChat}
-            className="w-9 h-9 rounded-2xl bg-gradient-to-r from-[#FF82AE] to-[#FF6F9F] text-white flex items-center justify-center shadow-md shadow-[#FF82AE]/30 hover:scale-105 active:scale-95 transition-all duration-200"
+            className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FF82AE] to-[#FF4F8B] text-white flex items-center justify-center shadow-lg shadow-[#FF82AE]/25 hover:-translate-y-0.5 active:scale-95 transition-all duration-200"
             title="Tạo cuộc trò chuyện mới"
+            aria-label="Tạo cuộc trò chuyện mới"
           >
             <Plus className="w-5 h-5" />
           </button>
@@ -66,9 +73,10 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm ai đó để trò chuyện nè... 🐰"
-            className="w-full bg-[#FFF0F6]/70 hover:bg-[#FFF0F6] focus:bg-white text-sm text-[#4C3441] placeholder:text-[#927D8A]/70 pl-10 pr-4 py-2.5 rounded-2xl border border-[#F7DDE8] focus:border-[#FF82AE] focus:outline-none focus:ring-2 focus:ring-[#FFD6E5] transition-all"
+            placeholder="Tìm người, nhóm hoặc @bunny_id..."
+            className="w-full bg-white/80 hover:bg-white focus:bg-white text-sm text-[#4C3441] placeholder:text-[#927D8A]/70 pl-10 pr-10 py-3 rounded-2xl border border-[#F7DDE8] focus:border-[#FF82AE] focus:outline-none focus:ring-4 focus:ring-[#FFD6E5]/60 transition-all shadow-[0_6px_18px_rgba(255,130,174,0.06)]"
           />
+          <SlidersHorizontal className="w-4 h-4 text-[#FF82AE] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
 
         {/* Filter Tabs */}
@@ -84,8 +92,8 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
               onClick={() => setFilter(tab.id as any)}
               className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
                 filter === tab.id
-                  ? 'bg-[#FF82AE] text-white font-semibold shadow-xs'
-                  : 'bg-[#FFF0F6] text-[#927D8A] hover:text-[#4C3441] hover:bg-[#FFE4F0]'
+                  ? 'bg-[#FF4F8B] text-white font-semibold shadow-sm shadow-[#FF82AE]/20'
+                  : 'bg-white text-[#927D8A] border border-[#F7DDE8] hover:text-[#4C3441] hover:bg-[#FFF0F6]'
               }`}
             >
               {tab.label}
@@ -95,7 +103,7 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
       </div>
 
       {/* Conversation List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
         {filtered.length === 0 ? (
           <div className="text-center py-12 px-4">
             <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-[#FFF0F6] flex items-center justify-center text-2xl">
@@ -113,13 +121,15 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
             const isOnline = otherUser?.status === 'online';
 
             return (
-              <div
+              <button
+                type="button"
                 key={c.id}
                 onClick={() => onSelectConversation(c.id)}
-                className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all duration-200 border ${
+                aria-label={`Mở cuộc trò chuyện ${c.name}`}
+                className={`w-full text-left flex items-center gap-3 p-3.5 rounded-[22px] cursor-pointer transition-all duration-200 border ${
                   isActive
-                    ? 'bg-gradient-to-r from-[#FFF0F6] to-[#FFE4F0]/60 border-[#FF82AE] shadow-sm'
-                    : 'bg-transparent hover:bg-[#FFF0F6]/60 border-transparent hover:border-[#F7DDE8]'
+                    ? 'bg-gradient-to-r from-[#FFF0F6] to-[#FFE4F0]/70 border-[#FF82AE] shadow-[0_8px_22px_rgba(255,130,174,0.14)]'
+                    : 'bg-white/70 hover:bg-[#FFF0F6]/70 border-transparent hover:border-[#F7DDE8] shadow-[0_4px_16px_rgba(76,52,65,0.03)]'
                 }`}
               >
                 {/* Avatar with online bubble */}
@@ -127,7 +137,7 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
                   <img
                     src={c.avatar}
                     alt={c.name}
-                    className="w-12 h-12 rounded-2xl object-cover border border-[#F7DDE8] shadow-xs"
+                    className="w-12 h-12 rounded-[18px] object-cover border border-[#F7DDE8] shadow-sm"
                   />
                   {c.type === 'direct' && (
                     <span
@@ -146,7 +156,7 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
                 {/* Details */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <span className={`text-sm truncate font-medium ${isActive ? 'text-[#FF4F8B] font-bold' : 'text-[#4C3441]'}`}>
+                    <span className={`text-[13px] truncate font-semibold ${isActive ? 'text-[#FF4F8B]' : 'text-[#4C3441]'}`}>
                       {c.name}
                     </span>
                     <span className="text-[11px] text-[#927D8A] shrink-0 ml-2">
@@ -157,7 +167,7 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between gap-1">
-                    <p className="text-xs text-[#927D8A] truncate flex-1">
+                    <p className="text-xs text-[#927D8A] truncate flex-1 leading-5">
                       {c.lastMessage ? (
                         <span>
                           {c.type === 'group' && <span className="font-medium text-[#4C3441]">{c.lastMessage.senderName}: </span>}
@@ -179,7 +189,7 @@ export const ChatListPanel: React.FC<ChatListPanelProps> = ({
                     </div>
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })
         )}

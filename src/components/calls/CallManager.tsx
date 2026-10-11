@@ -206,7 +206,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
 
           ctx.fillStyle = '#927D8A';
           ctx.font = '14px sans-serif';
-          ctx.fillText('HustMess Bunny Real-Time HD Video', 320, 390);
+          ctx.fillText('Pinkmess Bunny Real-Time HD Video', 320, 390);
 
           animationFrameId = requestAnimationFrame(drawVirtualCamera);
         };
@@ -441,7 +441,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
 
             {/* Subtle Bunny Call Frame watermark */}
             <div className="absolute bottom-4 left-5 text-xs text-[#FF82AE] font-semibold flex items-center gap-1.5 pointer-events-none">
-              <span>🐰 HustMess Bunny HD Stream</span>
+              <span>🐰 Pinkmess Bunny HD Stream</span>
             </div>
           </div>
         ) : (

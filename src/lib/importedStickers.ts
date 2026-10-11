@@ -33,12 +33,12 @@ const collections = [
   {
     manifestUrl: '/stickers/hustmess-bunny/manifest.json',
     assetRoot: '/stickers/hustmess-bunny',
-    author: 'HustMess Bunny'
+    author: 'Pinkmess Bunny'
   },
   {
     manifestUrl: '/stickers/hustmess-people/manifest.json',
     assetRoot: '/stickers/hustmess-people',
-    author: 'HustMess Cute People'
+    author: 'Pinkmess Cute People'
   }
 ] as const;
 

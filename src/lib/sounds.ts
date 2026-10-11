@@ -1,4 +1,4 @@
-// Cute Web Audio API Sound Synthesizer for HustMess Bunny Edition
+// Cute Web Audio API Sound Synthesizer for Pinkmess Bunny Chat
 
 class BunnyAudioEngine {
   private ctx: AudioContext | null = null;

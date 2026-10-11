@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Phone,
   Video,
+  ArrowLeft,
   Info,
   Pin,
   PinOff,
@@ -28,6 +29,7 @@ interface ChatWindowProps {
   messages: Message[];
   currentUser: User;
   allUsers: User[];
+  onBackToList: () => void;
   onSendMessage: (payload: any) => void;
   onEditMessage: (messageId: string, newContent: string) => void;
   onDeleteMessage: (messageId: string) => void;
@@ -48,6 +50,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   messages,
   currentUser,
   allUsers,
+  onBackToList,
   onSendMessage,
   onEditMessage,
   onDeleteMessage,
@@ -94,13 +97,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
           <span className="absolute -top-2 -right-2 text-3xl">💤</span>
         </div>
-        <h3 className="text-2xl font-bold text-[#4C3441] mb-2">Chào mừng bạn đến thế giới HustMess! 🐰💕</h3>
+        <h3 className="text-2xl font-bold text-[#4C3441] mb-2">Chào mừng bạn đến Pinkmess! 🐰💕</h3>
         <p className="text-sm text-[#927D8A] max-w-md mb-6">
           Chọn một cuộc trò chuyện ở bên trái hoặc bắt đầu cuộc trò chuyện mới để gửi những sticker và thông điệp ngọt ngào nhất.
         </p>
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#FFE4F0] text-[#FF4F8B] text-xs font-semibold border border-[#FFD6E5]">
           <span>🌸</span>
-          <span>"Nhắn một chút, thương một chút!"</span>
+          <span>"Pinkmess — nhắn một chút, thương một chút!"</span>
         </div>
       </div>
     );
@@ -148,10 +151,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FFFDFB] relative overflow-hidden select-none">
+    <div className="flex-1 min-w-0 flex flex-col h-full bg-[#FFFDFB] relative overflow-hidden select-none">
       {/* Top Bar Header */}
-      <div className="px-5 py-3.5 bg-white/95 backdrop-blur-md border-b border-[#F7DDE8] flex items-center justify-between shadow-xs z-20">
-        <div className="flex items-center gap-3">
+      <div className="px-3 sm:px-5 py-3 bg-white/95 backdrop-blur-md border-b border-[#F7DDE8] flex items-center justify-between shadow-xs z-20">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <button
+            onClick={onBackToList}
+            className="md:hidden w-9 h-9 rounded-2xl bg-[#FFF0F6] text-[#FF4F8B] flex items-center justify-center shrink-0 active:scale-95 transition-transform"
+            aria-label="Quay lại danh sách trò chuyện"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           <div className="relative">
             <img
               src={conversation.avatar}
@@ -166,16 +176,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               />
             )}
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-base text-[#4C3441] leading-tight">{conversation.name}</h3>
+              <h3 className="font-bold text-sm sm:text-base text-[#4C3441] leading-tight truncate">{conversation.name}</h3>
               {conversation.type === 'group' && (
                 <span className="text-[10px] font-semibold text-[#FF4F8B] bg-[#FFE4F0] px-2 py-0.5 rounded-full border border-[#FFD6E5]">
                   {conversation.participants.length} thành viên
                 </span>
               )}
             </div>
-            <p className="text-xs text-[#927D8A]">
+            <p className="text-[11px] sm:text-xs text-[#927D8A] truncate">
               {conversation.type === 'direct'
                 ? isOnline
                   ? otherUser?.statusMessage || 'Đang trực tuyến 🌸'
@@ -186,7 +196,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         {/* Top actions */}
-        <div className="flex items-center gap-1 md:gap-2">
+        <div className="flex items-center gap-0.5 sm:gap-1 md:gap-2 shrink-0">
           <button
             onClick={() => onStartCall('audio', targetCallUser)}
             className="p-2.5 rounded-2xl text-[#FF82AE] hover:text-[#FF4F8B] hover:bg-[#FFF0F6] active:scale-95 transition-all cursor-pointer"
@@ -263,7 +273,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       )}
 
       {/* Main Message Stream */}
-      <div className={`flex-1 overflow-y-auto p-4 md:p-6 space-y-4 ${currentWallpaperClass}`}>
+      <div className={`flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-4 ${currentWallpaperClass}`}>
         {messages.length === 0 ? (
           <div className="text-center py-20">
             <div className="w-20 h-20 mx-auto rounded-full bg-white/80 backdrop-blur-xs border-2 border-[#FFD6E5] flex items-center justify-center text-3xl shadow-sm mb-3">

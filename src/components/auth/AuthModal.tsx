@@ -167,7 +167,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
             <span className="absolute -bottom-1 -right-1 text-base">🎀</span>
           </div>
 
-          <h1 className="text-2xl font-black text-[#4C3441] tracking-tight">HustMess — Bunny Edition</h1>
+          <h1 className="text-2xl font-black text-[#4C3441] tracking-tight">Pinkmess — Bunny Chat</h1>
           <p className="text-xs text-[#FF4F8B] font-semibold mt-1">
             "Nhắn một chút, thương một chút! 🐰💕"
           </p>
@@ -402,7 +402,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess }) => {
               </svg>
               <div>
                 <h3 className="font-bold text-sm text-slate-800">Đăng nhập bằng Google</h3>
-                <p className="text-[11px] text-slate-500">để tiếp tục đến HustMess Bunny</p>
+                <p className="text-[11px] text-slate-500">để tiếp tục đến Pinkmess</p>
               </div>
             </div>
 

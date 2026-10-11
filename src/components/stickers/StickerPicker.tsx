@@ -244,7 +244,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
 
       {/* Footer Info */}
       <div className="px-3 py-1.5 bg-[#FFF0F6] border-t border-[#F7DDE8] flex items-center justify-between text-[11px] text-[#927D8A]">
-        <span>🐰 HustMess Bunny Sticker World</span>
+        <span>🐰 Pinkmess Sticker World</span>
         <span className="font-semibold text-[#FF4F8B]">{displayedStickers.length} stickers</span>
       </div>
     </div>

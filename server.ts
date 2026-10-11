@@ -42,7 +42,7 @@ const initialUsers = [
     name: 'Khánh Linh (Mèo Con)',
     email: 'linh@hustmess.pink',
     avatar: '/src/assets/images/bunny_calling_avatar_1791670258938.jpg',
-    bio: 'Thích trà sữa ít đường nhiều thạch 🧋 Mê sticker HustMess!',
+    bio: 'Thích trà sữa ít đường nhiều thạch 🧋 Mê sticker Pinkmess!',
     status: 'online',
     statusMessage: 'Đang nghe nhạc lo-fi 🎧',
     themePreference: 'lavender-dream',
@@ -115,7 +115,7 @@ const initialConversations = [
     createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
     updatedAt: new Date(Date.now() - 60000 * 5).toISOString(),
     lastMessage: {
-      text: 'Tối nay 8h họp nhóm gọi video qua HustMess nha mọi người ơi! 📹✨',
+      text: 'Tối nay 8h họp nhóm gọi video qua Pinkmess nha mọi người ơi! 📹✨',
       type: 'TEXT',
       senderName: 'Minh Hoa (Mochi)',
       timestamp: new Date(Date.now() - 60000 * 5).toISOString()
@@ -150,7 +150,7 @@ const initialMessages = [
     senderName: 'Khánh Linh (Mèo Con)',
     senderAvatar: '/src/assets/images/bunny_calling_avatar_1791670258938.jpg',
     type: 'TEXT',
-    content: 'Alo Bunny ơi, giao diện mới của HustMess Bunny Edition cưng xỉu luôn á! Màu hồng pastel ngọt ngào quá đi mất 🌸💕',
+    content: 'Alo Bunny ơi, giao diện mới của Pinkmess cưng xỉu luôn á! Màu hồng pastel ngọt ngào quá đi mất 🌸💕',
     createdAt: new Date(Date.now() - 60000 * 15).toISOString(),
     reactions: { '💖': ['user_bunny'], '🥰': ['user_linh'] }
   },
@@ -203,7 +203,7 @@ const initialMessages = [
     senderName: 'Bunny Bé Bỏng',
     senderAvatar: '/src/assets/images/bunny_mascot_hero_1791670247958.jpg',
     type: 'TEXT',
-    content: 'Chào mừng cả nhà đến với phòng chat nhóm HustMess Bunny! Mọi người thử tính năng sticker và gọi nhóm chưa?',
+    content: 'Chào mừng cả nhà đến với phòng chat nhóm Pinkmess! Mọi người thử tính năng sticker và gọi nhóm chưa?',
     createdAt: new Date(Date.now() - 60000 * 40).toISOString(),
     reactions: { '🎉': ['user_linh', 'user_hoa', 'user_nam'] }
   },
@@ -224,7 +224,7 @@ const initialMessages = [
     senderName: 'Minh Hoa (Mochi)',
     senderAvatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=MochiBunny&backgroundColor=ffd6e5',
     type: 'TEXT',
-    content: 'Tối nay 8h họp nhóm gọi video qua HustMess nha mọi người ơi! 📹✨',
+    content: 'Tối nay 8h họp nhóm gọi video qua Pinkmess nha mọi người ơi! 📹✨',
     createdAt: new Date(Date.now() - 60000 * 5).toISOString(),
     reactions: { '🐰': ['user_bunny', 'user_linh'] }
   }
@@ -613,7 +613,7 @@ async function startServer() {
       name: name.trim(),
       email: email?.trim() || `${cleanBunnyId}@hustmess.pink`,
       avatar: avatar || '/src/assets/images/bunny_mascot_hero_1791670247958.jpg',
-      bio: bio?.trim() || 'Chào mọi người, mình là thành viên mới của HustMess Bunny! 🐰💕',
+      bio: bio?.trim() || 'Chào mọi người, mình là thành viên mới của Pinkmess! 🐰💕',
       status: 'online' as const,
       statusMessage: 'Vừa mới gia nhập thế giới thỏ 🌸',
       themePreference: 'light-pink',
@@ -838,7 +838,7 @@ async function startServer() {
 
   // Health check
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', app: 'HustMess — Bunny Edition', time: new Date().toISOString() });
+    res.json({ status: 'ok', app: 'Pinkmess — Bunny Chat', time: new Date().toISOString() });
   });
 
   // Vite Integration
@@ -856,7 +856,7 @@ async function startServer() {
   }
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🐰 HustMess — Bunny Edition dev server running at http://0.0.0.0:${PORT}`);
+    console.log(`🐰 Pinkmess — Bunny Chat dev server running at http://0.0.0.0:${PORT}`);
   });
 }
 

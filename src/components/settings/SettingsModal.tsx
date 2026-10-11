@@ -41,7 +41,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="flex items-center justify-between pb-3 border-b border-[#F7DDE8]">
           <div className="flex items-center gap-2">
             <span className="text-xl">⚙️</span>
-            <h3 className="font-bold text-lg text-[#4C3441]">Cài Đặt HustMess Bunny</h3>
+            <h3 className="font-bold text-lg text-[#4C3441]">Cài Đặt Pinkmess</h3>
           </div>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-[#FFF0F6] text-[#927D8A]">
             <X className="w-5 h-5" />
@@ -186,7 +186,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <RefreshCw className="w-3.5 h-3.5" /> Khôi phục dữ liệu Demo
                   </h5>
                   <p className="text-[11px] text-[#927D8A] mt-1 leading-relaxed">
-                    Khôi phục lại danh sách tin nhắn, phòng chat và danh bạ mẫu ban đầu của HustMess Bunny.
+                    Khôi phục lại danh sách tin nhắn, phòng chat và danh bạ mẫu ban đầu của Pinkmess.
                   </p>
                   <button
                     onClick={() => {
