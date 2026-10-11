@@ -35,8 +35,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in select-none">
-      <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border-2 border-[#FFD6E5] flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-50 animate-in fade-in select-none">
+      <div className="bg-white rounded-3xl max-w-2xl w-full h-[min(92dvh,760px)] max-h-[calc(100dvh-1rem)] p-4 sm:p-6 shadow-2xl border-2 border-[#FFD6E5] flex flex-col min-h-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[#F7DDE8]">
           <div className="flex items-center gap-2">
@@ -49,9 +49,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Content Body with Left Tabs */}
-        <div className="flex flex-col md:flex-row flex-1 overflow-hidden py-3 gap-4">
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden py-3 gap-3 md:gap-4">
           {/* Tabs */}
-          <div className="w-full md:w-44 flex md:flex-col gap-1 border-b md:border-b-0 md:border-r border-[#F7DDE8] pb-2 md:pb-0 pr-0 md:pr-3 shrink-0">
+          <div className="w-full md:w-48 flex flex-row md:flex-col gap-2 border-b md:border-b-0 md:border-r border-[#F7DDE8] pb-2 md:pb-0 pr-0 md:pr-3 shrink-0 overflow-x-auto md:overflow-x-visible overscroll-x-contain no-scrollbar">
             {[
               { id: 'profile', label: 'Hồ sơ cá nhân', icon: UserIcon },
               { id: 'appearance', label: 'Giao diện & Chủ đề', icon: Palette },
@@ -63,7 +63,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-2xl text-xs font-semibold transition-all text-left ${
+                  className={`flex shrink-0 items-center justify-center md:justify-start gap-2.5 px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all text-left whitespace-nowrap md:whitespace-normal md:min-w-0 ${
                     activeTab === tab.id
                       ? 'bg-[#FFE4F0] text-[#FF4F8B]'
                       : 'text-[#4C3441] hover:bg-[#FFF0F6]'
@@ -77,7 +77,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           {/* Tab Panel */}
-          <div className="flex-1 overflow-y-auto px-1 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-1 pb-2 space-y-4 [scrollbar-gutter:stable]">
             {activeTab === 'profile' && (
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
@@ -225,7 +225,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="pt-3 border-t border-[#F7DDE8] flex items-center justify-between">
+        <div className="shrink-0 pt-3 border-t border-[#F7DDE8] bg-white flex flex-wrap items-center justify-between gap-2">
           <button
             onClick={() => {
               if (confirm('Bạn có chắc chắn muốn đăng xuất?')) {
@@ -238,7 +238,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <LogOut className="w-3.5 h-3.5" /> Đăng xuất
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <button onClick={onClose} className="px-4 py-2 rounded-xl text-xs font-semibold text-[#927D8A] hover:bg-[#FFF0F6]">
               Đóng
             </button>

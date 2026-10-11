@@ -116,6 +116,8 @@ export interface StickerPack {
   stickersCount: number;
   isOfficial: boolean;
   isAnimated: boolean;
+  collectionId?: string;
+  collectionName?: string;
   stickers: Sticker[];
   createdAt: string;
 }

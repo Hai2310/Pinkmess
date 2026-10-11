@@ -104,6 +104,8 @@ export async function loadImportedStickerPacks(): Promise<StickerPack[]> {
         stickersCount: stickers.length,
         isOfficial: true,
         isAnimated: Boolean(pack.animated),
+        collectionId: manifest.collectionId,
+        collectionName: manifest.name,
         createdAt: new Date().toISOString(),
         stickers
       };
