@@ -63,7 +63,12 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const conversationId = event.notification.data?.conversationId;
-  const targetUrl = conversationId ? `/?conversation=${encodeURIComponent(conversationId)}` : '/';
+  const callRequestId = event.notification.data?.callRequestId;
+  const targetUrl = conversationId
+    ? `/?conversation=${encodeURIComponent(conversationId)}`
+    : callRequestId
+    ? `/?call_request=${encodeURIComponent(callRequestId)}`
+    : '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       const existing = clients.find((client) => 'focus' in client);
