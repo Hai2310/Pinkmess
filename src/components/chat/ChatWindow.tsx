@@ -1,13 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
+  Archive,
+  Bell,
+  BellOff,
+  Copy,
   Phone,
   Video,
   ArrowLeft,
+  ArrowRight,
   Info,
   Pin,
   PinOff,
   MoreVertical,
   CornerUpLeft,
+  Forward,
   Smile,
   Trash2,
   Edit2,
@@ -15,11 +21,14 @@ import {
   Play,
   Pause,
   Download,
+  FileText,
   Palette,
   Sparkles,
   Heart,
   MapPin,
-  Upload
+  Upload,
+  Users,
+  X
 } from 'lucide-react';
 import { Conversation, LocationSession, Message, User } from '../../types';
 import { ChatComposer } from './ChatComposer';
@@ -48,6 +57,10 @@ interface ChatWindowProps {
   onRequestLocation: () => void;
   locationSession: LocationSession | null;
   onStopLocationSharing: () => void;
+  availableConversations: Conversation[];
+  onUpdateConversation: (updates: Partial<Conversation>) => void;
+  onCreateGroupChat: () => void;
+  onForwardMessage: (message: Message, targetConversationId: string) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -71,7 +84,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onChangeWallpaper,
   onRequestLocation,
   locationSession,
-  onStopLocationSharing
+  onStopLocationSharing,
+  availableConversations,
+  onUpdateConversation,
+  onCreateGroupChat,
+  onForwardMessage
 }) => {
   const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
@@ -80,6 +97,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [showWallpaperMenu, setShowWallpaperMenu] = useState(false);
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [showConversationInfo, setShowConversationInfo] = useState(false);
+  const [messageAction, setMessageAction] = useState<Message | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+  const [nicknameDraft, setNicknameDraft] = useState('');
+  const [groupNameDraft, setGroupNameDraft] = useState('');
+  const messageLongPressTimerRef = useRef<number | null>(null);
   const wallpaperUploadRef = useRef<HTMLInputElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -92,6 +115,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages, typingUser]);
+
+  useEffect(() => {
+    if (!conversation) return;
+    const targetUserId = conversation.participants.find((participantId) => participantId !== currentUser.id);
+    setNicknameDraft(targetUserId ? conversation.nicknames?.[targetUserId] || '' : '');
+    setGroupNameDraft(conversation.name);
+    setShowConversationInfo(false);
+    setMessageAction(null);
+    setForwardingMessage(null);
+  }, [conversation, currentUser.id]);
+
+  useEffect(() => () => clearMessageLongPress(), []);
 
   if (!conversation) {
     return (
@@ -122,7 +157,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const otherUserId = conversation.participants.find((p) => p !== currentUser.id);
   const otherUser = allUsers.find((u) => u.id === otherUserId);
   const targetCallUser = otherUser;
-  const conversationDisplayName = conversation.type === 'direct' ? otherUser?.name || conversation.name : conversation.name;
+  const conversationDisplayName = conversation.type === 'direct'
+    ? conversation.nicknames?.[otherUserId || ''] || otherUser?.name || conversation.name
+    : conversation.name;
   const conversationDisplayAvatar = conversation.type === 'direct' ? otherUser?.avatar || conversation.avatar : conversation.avatar;
   const isOnline = otherUser?.status === 'online';
 
@@ -161,6 +198,55 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const reactionEmojis = ['💖', '🐰', '🥰', '🤣', '😭', '👏', '🌸'];
 
+  const conversationMedia = messages.filter((message) =>
+    ['IMAGE', 'VIDEO', 'FILE', 'STICKER'].includes(message.type)
+  );
+
+  const clearMessageLongPress = () => {
+    if (messageLongPressTimerRef.current !== null) {
+      window.clearTimeout(messageLongPressTimerRef.current);
+      messageLongPressTimerRef.current = null;
+    }
+  };
+
+  const openMessageActions = (message: Message) => {
+    clearMessageLongPress();
+    setMessageAction(message);
+  };
+
+  const startMessageLongPress = (message: Message) => {
+    clearMessageLongPress();
+    messageLongPressTimerRef.current = window.setTimeout(() => openMessageActions(message), 520);
+  };
+
+  const copyMessage = async (message: Message) => {
+    const copyText = message.type === 'STICKER'
+      ? `🐰 ${message.stickerName || 'Sticker Pinkmess'}`
+      : message.type === 'LOCATION'
+      ? message.locationMapUrl || `https://www.google.com/maps?q=${message.locationLatitude},${message.locationLongitude}`
+      : message.content;
+    try {
+      await navigator.clipboard.writeText(copyText);
+      window.alert('Đã sao chép tin nhắn vào bộ nhớ tạm 💌');
+    } catch {
+      window.prompt('Sao chép tin nhắn:', copyText);
+    }
+    setMessageAction(null);
+  };
+
+  const saveConversationSettings = () => {
+    if (conversation.type === 'direct' && otherUserId) {
+      const nicknames = { ...(conversation.nicknames || {}) };
+      const cleanNickname = nicknameDraft.trim().slice(0, 40);
+      if (cleanNickname) nicknames[otherUserId] = cleanNickname;
+      else delete nicknames[otherUserId];
+      onUpdateConversation({ nicknames });
+    } else if (conversation.type === 'group' && groupNameDraft.trim()) {
+      onUpdateConversation({ name: groupNameDraft.trim().slice(0, 80) });
+    }
+    window.alert('Đã lưu cài đặt cuộc trò chuyện 🌸');
+  };
+
   const handleAudioToggle = (msgId: string, audioData: string) => {
     if (playingAudioId === msgId) {
       audioPlayerRef.current?.pause();
@@ -181,7 +267,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     <div className="flex-1 min-w-0 flex flex-col h-full bg-[#FFFDFB] relative overflow-hidden select-none">
       {/* Top Bar Header */}
       <div className="px-3 sm:px-5 py-3 bg-white/95 backdrop-blur-md border-b border-[#F7DDE8] flex items-center justify-between shadow-xs z-20">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div
+          className="flex min-w-0 cursor-pointer items-center gap-2.5 rounded-2xl px-1 py-0.5 transition-colors hover:bg-[#FFF0F6]"
+          onClick={() => setShowConversationInfo(true)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') setShowConversationInfo(true);
+          }}
+          title="Mở cài đặt cuộc trò chuyện"
+        >
           <button
             onClick={onBackToList}
             className="md:hidden w-9 h-9 rounded-2xl bg-[#FFF0F6] text-[#FF4F8B] flex items-center justify-center shrink-0 active:scale-95 transition-transform"
@@ -306,6 +401,170 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
       </div>
+
+      {showConversationInfo && (
+        <div
+          className="absolute inset-0 z-40 bg-[#4C3441]/25 backdrop-blur-[2px]"
+          onClick={() => setShowConversationInfo(false)}
+        >
+          <aside
+            className="absolute right-0 top-0 flex h-full w-full max-w-[390px] flex-col overflow-hidden border-l border-[#FFD6E5] bg-[#FFFDFB] shadow-2xl animate-in slide-in-from-right duration-200"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#F7DDE8] bg-gradient-to-r from-[#FFF0F6] to-white px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <img src={conversationDisplayAvatar} alt={conversationDisplayName} className="h-11 w-11 rounded-2xl border-2 border-[#FFD6E5] object-cover" />
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-black text-[#4C3441]">Cài đặt cuộc trò chuyện</h3>
+                  <p className="truncate text-[11px] text-[#927D8A]">{conversationDisplayName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConversationInfo(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-[#927D8A] hover:bg-white hover:text-[#FF4F8B]"
+                aria-label="Đóng cài đặt cuộc trò chuyện"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-4 overflow-y-auto p-4">
+              <section className="rounded-3xl border border-[#FFD6E5] bg-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 text-xs font-black text-[#4C3441]">
+                  <Info className="h-4 w-4 text-[#FF4F8B]" /> Thông tin cuộc trò chuyện
+                </div>
+                <div className="flex items-center gap-3 rounded-2xl bg-[#FFF8FB] p-2.5">
+                  <img src={conversationDisplayAvatar} alt={conversationDisplayName} className="h-12 w-12 rounded-2xl object-cover" />
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-bold text-[#4C3441]">{conversationDisplayName}</div>
+                    <div className="text-[11px] text-[#927D8A]">{conversation.participants.length} thành viên · {conversation.type === 'group' ? 'Nhóm chat' : isOnline ? 'Đang online' : 'Ngoại tuyến'}</div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-[#FFD6E5] bg-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 text-xs font-black text-[#4C3441]">
+                  <Sparkles className="h-4 w-4 text-[#FF4F8B]" /> {conversation.type === 'group' ? 'Tên nhóm' : 'Biệt danh'}
+                </div>
+                {conversation.type === 'direct' ? (
+                  <input
+                    value={nicknameDraft}
+                    onChange={(event) => setNicknameDraft(event.target.value)}
+                    placeholder={`Đặt biệt danh cho ${otherUser?.name || 'người này'}...`}
+                    className="w-full rounded-2xl border border-[#F7DDE8] bg-[#FFF8FB] px-3 py-2.5 text-sm text-[#4C3441] outline-none focus:border-[#FF82AE] focus:ring-4 focus:ring-[#FFD6E5]/60"
+                  />
+                ) : (
+                  <input
+                    value={groupNameDraft}
+                    onChange={(event) => setGroupNameDraft(event.target.value)}
+                    placeholder="Tên nhóm Pinkmess..."
+                    className="w-full rounded-2xl border border-[#F7DDE8] bg-[#FFF8FB] px-3 py-2.5 text-sm text-[#4C3441] outline-none focus:border-[#FF82AE] focus:ring-4 focus:ring-[#FFD6E5]/60"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={saveConversationSettings}
+                  className="mt-2 w-full rounded-2xl bg-gradient-to-r from-[#FF82AE] to-[#FF4F8B] px-3 py-2.5 text-xs font-bold text-white shadow-md shadow-[#FF82AE]/25"
+                >
+                  Lưu thay đổi 💗
+                </button>
+              </section>
+
+              <section className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onUpdateConversation({ isPinned: !conversation.isPinned })}
+                  className="flex items-center gap-2 rounded-2xl border border-[#F7DDE8] bg-white px-3 py-3 text-left text-xs font-bold text-[#4C3441] hover:bg-[#FFF0F6]"
+                >
+                  {conversation.isPinned ? <PinOff className="h-4 w-4 text-[#FF4F8B]" /> : <Pin className="h-4 w-4 text-[#FF4F8B]" />}
+                  {conversation.isPinned ? 'Bỏ ghim chat' : 'Ghim chat'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdateConversation({ isMuted: !conversation.isMuted })}
+                  className="flex items-center gap-2 rounded-2xl border border-[#F7DDE8] bg-white px-3 py-3 text-left text-xs font-bold text-[#4C3441] hover:bg-[#FFF0F6]"
+                >
+                  {conversation.isMuted ? <Bell className="h-4 w-4 text-[#FF4F8B]" /> : <BellOff className="h-4 w-4 text-[#FF4F8B]" />}
+                  {conversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'}
+                </button>
+              </section>
+
+              <section className="rounded-3xl border border-[#FFD6E5] bg-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-black text-[#4C3441]"><Pin className="h-4 w-4 text-[#FF4F8B]" /> Tin nhắn đã ghim</div>
+                  <span className="rounded-full bg-[#FFF0F6] px-2 py-0.5 text-[10px] font-bold text-[#FF4F8B]">{pinnedMessages.length}</span>
+                </div>
+                {pinnedMessages.length === 0 ? (
+                  <p className="rounded-2xl bg-[#FFF8FB] px-3 py-3 text-xs text-[#927D8A]">Chưa có tin nhắn nào được ghim.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {pinnedMessages.map((message) => (
+                      <button
+                        type="button"
+                        key={message.id}
+                        onClick={() => { setShowConversationInfo(false); openMessageActions(message); }}
+                        className="flex w-full items-center gap-2 rounded-2xl bg-[#FFF8FB] px-3 py-2 text-left hover:bg-[#FFF0F6]"
+                      >
+                        <Pin className="h-3.5 w-3.5 shrink-0 text-[#FF4F8B]" />
+                        <span className="truncate text-xs text-[#4C3441]">{message.type === 'STICKER' ? `🐰 ${message.stickerName || 'Sticker'}` : message.content}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-3xl border border-[#FFD6E5] bg-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-black text-[#4C3441]"><Archive className="h-4 w-4 text-[#FF4F8B]" /> File & phương tiện</div>
+                  <span className="rounded-full bg-[#FFF0F6] px-2 py-0.5 text-[10px] font-bold text-[#FF4F8B]">{conversationMedia.length}</span>
+                </div>
+                {conversationMedia.length === 0 ? (
+                  <p className="rounded-2xl bg-[#FFF8FB] px-3 py-3 text-xs text-[#927D8A]">Ảnh, sticker và tệp gửi trong chat sẽ nằm ở đây.</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {conversationMedia.map((message) => {
+                      const attachment = message.attachments?.[0];
+                      const mediaUrl = attachment?.url || message.content;
+                      return (
+                        <a
+                          key={message.id}
+                          href={mediaUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          download={attachment?.name || `pinkmess-${message.id}`}
+                          className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl border border-[#F7DDE8] bg-[#FFF8FB]"
+                          title="Mở hoặc tải xuống"
+                        >
+                          {message.type === 'IMAGE' && mediaUrl ? (
+                            <img src={mediaUrl} alt="Phương tiện trong cuộc trò chuyện" className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                          ) : message.type === 'STICKER' ? (
+                            <span className="text-2xl">🐰</span>
+                          ) : (
+                            <FileText className="h-6 w-6 text-[#FF82AE]" />
+                          )}
+                          <span className="absolute bottom-1 right-1 rounded-full bg-white/90 p-1 text-[#FF4F8B] shadow-sm"><Download className="h-3 w-3" /></span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {conversation.type === 'direct' && (
+                <button
+                  type="button"
+                  onClick={() => { setShowConversationInfo(false); onCreateGroupChat(); }}
+                  className="flex w-full items-center gap-3 rounded-3xl border border-dashed border-[#FFB1CA] bg-[#FFF8FB] px-4 py-3 text-left text-xs font-bold text-[#FF4F8B] hover:bg-[#FFF0F6]"
+                >
+                  <Users className="h-5 w-5" /> Tạo nhóm chat với người này
+                  <ArrowRight className="ml-auto h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* Pinned Messages Banner */}
       {pinnedMessages.length > 0 && (
@@ -433,7 +692,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   )}
 
                   {/* Content Bubble based on Type */}
-                  <div className="relative group/bubble">
+                  <div
+                    className="relative group/bubble"
+                    onPointerDown={(event) => {
+                      if (event.pointerType === 'mouse' && event.button !== 0) return;
+                      startMessageLongPress(msg);
+                    }}
+                    onPointerUp={clearMessageLongPress}
+                    onPointerCancel={clearMessageLongPress}
+                    onPointerLeave={clearMessageLongPress}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      openMessageActions(msg);
+                    }}
+                  >
                     {/* 1. STICKER TYPE */}
                     {msg.type === 'STICKER' ? (
                       <div className="p-2 transition-transform hover:scale-105 duration-200 cursor-pointer">
@@ -734,6 +1006,114 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         <div ref={messagesEndRef} />
       </div>
+
+      {messageAction && (
+        <div
+          className="fixed inset-0 z-[70] bg-[#4C3441]/20 backdrop-blur-[2px]"
+          onClick={() => setMessageAction(null)}
+        >
+          <div
+            className="absolute bottom-0 left-0 right-0 mx-auto w-full max-w-lg rounded-t-[28px] border border-[#FFD6E5] bg-white p-4 shadow-2xl animate-in slide-in-from-bottom-3 duration-200 md:bottom-6 md:rounded-3xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-[#FFD6E5] md:hidden" />
+            <div className="mb-3 flex items-center gap-2 border-b border-[#F7DDE8] pb-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#FFF0F6] text-lg">
+                {messageAction.type === 'STICKER' ? '🐰' : messageAction.type === 'IMAGE' ? '🖼️' : messageAction.type === 'AUDIO' ? '🎙️' : '💌'}
+              </span>
+              <p className="line-clamp-2 min-w-0 flex-1 text-xs text-[#927D8A]">
+                {messageAction.type === 'STICKER' ? messageAction.stickerName || 'Sticker Pinkmess' : messageAction.content}
+              </p>
+              <button type="button" onClick={() => setMessageAction(null)} className="rounded-full p-1.5 text-[#927D8A] hover:bg-[#FFF0F6]" aria-label="Đóng menu tin nhắn">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mb-3 flex items-center gap-2 overflow-x-auto rounded-2xl bg-[#FFF8FB] p-2">
+              {reactionEmojis.map((emoji) => (
+                <button
+                  type="button"
+                  key={emoji}
+                  onClick={() => {
+                    bunnyAudio.playReactionSound();
+                    onReactMessage(messageAction.id, emoji);
+                    setMessageAction(null);
+                  }}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg transition-transform hover:scale-125 hover:bg-white"
+                  title={`Thả ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => { setActiveReactionMsgId(messageAction.id); setMessageAction(null); }}
+                className="ml-auto shrink-0 rounded-full bg-white px-3 py-2 text-[11px] font-bold text-[#FF4F8B]"
+              >
+                Thêm 💗
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => { setReplyToMessage(messageAction); setMessageAction(null); }} className="flex items-center gap-2 rounded-2xl border border-[#F7DDE8] px-3 py-2.5 text-left text-xs font-bold text-[#4C3441] hover:bg-[#FFF0F6]"><CornerUpLeft className="h-4 w-4 text-[#FF4F8B]" /> Trả lời</button>
+              <button type="button" onClick={() => { setForwardingMessage(messageAction); setMessageAction(null); }} className="flex items-center gap-2 rounded-2xl border border-[#F7DDE8] px-3 py-2.5 text-left text-xs font-bold text-[#4C3441] hover:bg-[#FFF0F6]"><Forward className="h-4 w-4 text-[#FF4F8B]" /> Chuyển tiếp</button>
+              <button type="button" onClick={() => void copyMessage(messageAction)} className="flex items-center gap-2 rounded-2xl border border-[#F7DDE8] px-3 py-2.5 text-left text-xs font-bold text-[#4C3441] hover:bg-[#FFF0F6]"><Copy className="h-4 w-4 text-[#FF4F8B]" /> Sao chép</button>
+              <button type="button" onClick={() => { onPinMessage(messageAction.id); setMessageAction(null); }} className="flex items-center gap-2 rounded-2xl border border-[#F7DDE8] px-3 py-2.5 text-left text-xs font-bold text-[#4C3441] hover:bg-[#FFF0F6]"><Pin className="h-4 w-4 text-[#FF4F8B]" /> {messageAction.isPinned ? 'Bỏ ghim' : 'Ghim tin nhắn'}</button>
+              {messageAction.senderId === currentUser.id && messageAction.type === 'TEXT' && (
+                <button type="button" onClick={() => { setEditingMessageId(messageAction.id); setEditingContent(messageAction.content); setMessageAction(null); }} className="flex items-center gap-2 rounded-2xl border border-[#F7DDE8] px-3 py-2.5 text-left text-xs font-bold text-[#4C3441] hover:bg-[#FFF0F6]"><Edit2 className="h-4 w-4 text-[#FF4F8B]" /> Sửa tin nhắn</button>
+              )}
+              {messageAction.senderId === currentUser.id && (
+                <button type="button" onClick={() => { onDeleteMessage(messageAction.id); setMessageAction(null); }} className="flex items-center gap-2 rounded-2xl border border-rose-100 px-3 py-2.5 text-left text-xs font-bold text-rose-500 hover:bg-rose-50"><Trash2 className="h-4 w-4" /> Xóa tin nhắn</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {forwardingMessage && (
+        <div
+          className="fixed inset-0 z-[75] flex items-end justify-center bg-[#4C3441]/25 p-0 backdrop-blur-[2px] md:items-center md:p-4"
+          onClick={() => setForwardingMessage(null)}
+        >
+          <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-t-[28px] border border-[#FFD6E5] bg-white p-4 shadow-2xl md:rounded-3xl" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between border-b border-[#F7DDE8] pb-3">
+              <div>
+                <h3 className="text-sm font-black text-[#4C3441]">Chuyển tiếp tin nhắn</h3>
+                <p className="mt-0.5 text-[11px] text-[#927D8A]">Chọn một cuộc trò chuyện để gửi</p>
+              </div>
+              <button type="button" onClick={() => setForwardingMessage(null)} className="rounded-full p-1.5 text-[#927D8A] hover:bg-[#FFF0F6]" aria-label="Đóng chuyển tiếp"><X className="h-5 w-5" /></button>
+            </div>
+            {forwardingMessage.type === 'LOCATION' ? (
+              <p className="rounded-2xl bg-[#FFF0F6] px-3 py-3 text-xs text-[#927D8A]">Vị trí trực tiếp không thể chuyển tiếp vì lý do riêng tư.</p>
+            ) : (
+              <div className="space-y-2 overflow-y-auto">
+                {availableConversations.filter((item) => item.id !== conversation.id).map((targetConversation) => {
+                  const targetOtherId = targetConversation.participants.find((participantId) => participantId !== currentUser.id);
+                  const targetName = targetConversation.type === 'direct'
+                    ? allUsers.find((user) => user.id === targetOtherId)?.name || targetConversation.name
+                    : targetConversation.name;
+                  return (
+                    <button
+                      type="button"
+                      key={targetConversation.id}
+                      onClick={() => {
+                        onForwardMessage(forwardingMessage, targetConversation.id);
+                        setForwardingMessage(null);
+                        window.alert(`Đã chuyển tiếp tới ${targetName} 💌`);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-[#F7DDE8] px-3 py-2.5 text-left hover:bg-[#FFF0F6]"
+                    >
+                      <img src={targetConversation.type === 'direct' ? allUsers.find((user) => user.id === targetOtherId)?.avatar || targetConversation.avatar : targetConversation.avatar} alt={targetName} className="h-10 w-10 rounded-2xl border border-[#FFD6E5] object-cover" />
+                      <span className="min-w-0 flex-1 truncate text-xs font-bold text-[#4C3441]">{targetName}</span>
+                      <Forward className="h-4 w-4 shrink-0 text-[#FF4F8B]" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Sticker Picker Popup */}
       {isStickerPickerOpen && (
