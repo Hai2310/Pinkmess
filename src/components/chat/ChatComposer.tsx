@@ -63,6 +63,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<number | null>(null);
+  const recordSecondsRef = useRef(0);
+  const cancelRecordingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sendLongPressTimerRef = useRef<number | null>(null);
@@ -147,11 +149,19 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
   // Voice recording handlers using MediaRecorder
   const startRecording = async () => {
+    if (isRecording) return;
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      window.alert('Thiết bị hoặc trình duyệt này chưa hỗ trợ ghi âm. Bạn thử mở Pinkmess bằng Safari hoặc Chrome nhé.');
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+      cancelRecordingRef.current = false;
 
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -160,6 +170,13 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       };
 
       mediaRecorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        if (cancelRecordingRef.current) {
+          cancelRecordingRef.current = false;
+          audioChunksRef.current = [];
+          return;
+        }
+
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -168,33 +185,31 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           onSendMessage({
             type: 'AUDIO',
             content: base64Audio,
-            audioDuration: recordSeconds || 3
+            audioDuration: recordSecondsRef.current || 1
           });
         };
         reader.readAsDataURL(audioBlob);
-
-        // Stop all audio tracks
-        stream.getTracks().forEach((track) => track.stop());
       };
 
       mediaRecorder.start();
       setIsRecording(true);
       setRecordSeconds(0);
+      recordSecondsRef.current = 0;
       recordTimerRef.current = window.setInterval(() => {
-        setRecordSeconds((s) => s + 1);
+        setRecordSeconds((seconds) => {
+          const nextSeconds = seconds + 1;
+          recordSecondsRef.current = nextSeconds;
+          return nextSeconds;
+        });
       }, 1000);
     } catch (err) {
       console.warn('Microphone permission not granted or unsupported:', err);
-      // Fallback simulated cute voice note
-      setIsRecording(true);
-      setRecordSeconds(0);
-      recordTimerRef.current = window.setInterval(() => {
-        setRecordSeconds((s) => s + 1);
-      }, 1000);
+      window.alert('Pinkmess chưa được cấp quyền micro. Hãy cho phép Microphone rồi bấm nút 🎙️ lại nhé.');
     }
   };
 
   const stopRecording = (cancel = false) => {
+    cancelRecordingRef.current = cancel;
     if (recordTimerRef.current) {
       clearInterval(recordTimerRef.current);
       recordTimerRef.current = null;
@@ -211,13 +226,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     } else {
-      // Fallback note
-      bunnyAudio.playSendSound();
-      onSendMessage({
-        type: 'AUDIO',
-        content: 'data:audio/mp3;base64,mock',
-        audioDuration: Math.max(recordSeconds, 2)
-      });
+      cancelRecordingRef.current = false;
     }
     setIsRecording(false);
   };
@@ -351,9 +360,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex items-end gap-2 bg-[#FFF0F6]/60 rounded-3xl p-1.5 md:p-2 border border-[#F7DDE8] focus-within:border-[#FF82AE] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#FFD6E5]/80 transition-all shadow-xs">
+        <div className="flex w-full items-end gap-1.5 rounded-[28px] border border-[#F7DDE8] bg-[#FFF0F6]/70 px-2 py-1.5 shadow-xs transition-all focus-within:border-[#FF82AE] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#FFD6E5]/80 md:gap-2 md:px-3 md:py-2">
           {/* Action buttons */}
-          <div className="flex items-center gap-0.5 pb-1">
+          <div className="flex shrink-0 items-center gap-0.5">
             <input
               type="file"
               ref={fileInputRef}
@@ -364,41 +373,42 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 rounded-2xl text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFE4F0] transition-colors"
-              title="Đính kèm tệp / ảnh"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#927D8A] transition-colors hover:bg-[#FFE4F0] hover:text-[#FF4F8B]"
+              title="Thêm ảnh hoặc tệp"
+              aria-label="Thêm ảnh hoặc tệp"
             >
-              <Paperclip className="w-5 h-5" />
+              <ImageIcon className="h-[18px] w-[18px]" />
             </button>
 
             <button
               type="button"
               onClick={onRequestLocation}
-              className={`p-2 rounded-2xl transition-colors ${isLocationSharing ? 'bg-[#FF82AE] text-white shadow-xs' : 'text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFE4F0]'}`}
+              className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${isLocationSharing ? 'bg-[#FF82AE] text-white shadow-xs' : 'text-[#927D8A] hover:bg-[#FFE4F0] hover:text-[#FF4F8B]'}`}
               title={isLocationSharing ? 'Đang chia sẻ vị trí trực tiếp' : 'Xin phép chia sẻ vị trí trực tiếp với người này'}
             >
-              <MapPin className="w-5 h-5" />
+              <MapPin className="h-[18px] w-[18px]" />
             </button>
 
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="p-2 rounded-2xl text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFE4F0] transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#927D8A] transition-colors hover:bg-[#FFE4F0] hover:text-[#FF4F8B]"
               title="Emoji dễ thương"
             >
-              <Smile className="w-5 h-5" />
+              <Smile className="h-[18px] w-[18px]" />
             </button>
 
             <button
               type="button"
               onClick={onToggleStickerPicker}
-              className={`p-2 rounded-2xl transition-all relative ${
+              className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-all ${
                 isStickerPickerOpen
                   ? 'bg-[#FF82AE] text-white shadow-xs'
                   : 'text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFE4F0]'
               }`}
               title="Mở kho Sticker Bunny World"
             >
-              <span className="text-lg leading-none">🐰</span>
+              <span className="text-base leading-none">🐰</span>
               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#FF4F8B]" />
             </button>
           </div>
@@ -412,19 +422,20 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             onKeyDown={handleKeyDown}
             placeholder="Nhắn điều dễ thương gì đó đi... 💌"
             style={{ fontFamily: selectedFontFamily }}
-            className="flex-1 max-h-32 bg-transparent text-sm text-[#4C3441] placeholder:text-[#927D8A]/70 focus:outline-none resize-none py-2 px-2"
+            className="min-w-0 flex-1 max-h-28 min-h-9 resize-none overflow-y-auto bg-transparent px-2 py-2 text-sm leading-5 text-[#4C3441] placeholder:text-[#927D8A]/70 focus:outline-none"
           />
 
           {/* Right action button: Voice record OR Send */}
-          <div className="flex items-center gap-1 pb-1 pr-1">
+          <div className="flex shrink-0 items-center gap-1 pr-0.5">
             {text.trim().length === 0 ? (
               <button
                 type="button"
                 onClick={startRecording}
-                className="p-2.5 rounded-2xl text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFE4F0] transition-colors"
-                title="Ghi âm giọng nói"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-[#927D8A] transition-colors hover:bg-[#FFE4F0] hover:text-[#FF4F8B] active:scale-95"
+                title="Bấm để bắt đầu ghi âm"
+                aria-label="Bấm để bắt đầu ghi âm"
               >
-                <Mic className="w-5 h-5" />
+                <Mic className="h-5 w-5" />
               </button>
             ) : (
               <button
@@ -434,7 +445,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 onPointerCancel={clearSendLongPress}
                 onPointerLeave={clearSendLongPress}
                 onContextMenu={(event) => event.preventDefault()}
-                className="w-10 h-10 rounded-2xl bg-gradient-to-r from-[#FF82AE] to-[#FF6F9F] text-white flex items-center justify-center shadow-md shadow-[#FF82AE]/30 hover:scale-105 active:scale-95 transition-all duration-200"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-r from-[#FF82AE] to-[#FF6F9F] text-white shadow-md shadow-[#FF82AE]/30 transition-all duration-200 hover:scale-105 active:scale-95"
                 title="Chạm để gửi · Giữ để chọn phông chữ"
               >
                 <Send className="w-4 h-4 translate-x-0.5" />
