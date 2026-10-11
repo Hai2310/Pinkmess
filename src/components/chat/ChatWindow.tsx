@@ -21,7 +21,7 @@ import {
   MapPin,
   Upload
 } from 'lucide-react';
-import { Conversation, Message, User } from '../../types';
+import { Conversation, LocationSession, Message, User } from '../../types';
 import { ChatComposer } from './ChatComposer';
 import { StickerPicker } from '../stickers/StickerPicker';
 import { bunnyAudio } from '../../lib/sounds';
@@ -46,6 +46,8 @@ interface ChatWindowProps {
   onToggleFavoriteSticker: (id: string) => void;
   onChangeWallpaper: (wallpaper: string) => void;
   onRequestLocation: () => void;
+  locationSession: LocationSession | null;
+  onStopLocationSharing: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -67,7 +69,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   recentStickers,
   onToggleFavoriteSticker,
   onChangeWallpaper,
-  onRequestLocation
+  onRequestLocation,
+  locationSession,
+  onStopLocationSharing
 }) => {
   const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
@@ -323,6 +327,49 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           >
             Bỏ ghim
           </button>
+        </div>
+      )}
+
+      {locationSession?.conversationId === conversation.id && (
+        <div className="border-b border-[#FFD6E5] bg-gradient-to-r from-[#FFF0F6]/95 to-[#FFFDFB]/95 px-3 py-3 backdrop-blur-md sm:px-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs font-extrabold text-[#4C3441]">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#FF4F8B] text-white">📍</span>
+                <span>Đang chia sẻ vị trí trực tiếp</span>
+                <span className="rounded-full bg-[#E9FFF4] px-2 py-0.5 text-[10px] font-bold text-emerald-600">Đã đồng ý 2 bên</span>
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                {[locationSession.requesterId, locationSession.targetUserId].map((userId) => {
+                  const user = allUsers.find((candidate) => candidate.id === userId);
+                  const point = locationSession.locations[userId];
+                  const mapUrl = point?.mapUrl || (point ? `https://www.google.com/maps?q=${point.latitude},${point.longitude}` : '#');
+                  return (
+                    <div key={userId} className="flex min-w-0 items-center gap-2 rounded-2xl border border-[#F7DDE8] bg-white/80 px-2.5 py-2">
+                      <span className="shrink-0 text-sm">{point ? '🟢' : '⏳'}</span>
+                      <div className="min-w-0 flex-1">
+                        <span className="block truncate text-[11px] font-bold text-[#4C3441]">{user?.name || 'Bạn Pinkmess'}</span>
+                        {point ? (
+                          <a href={mapUrl} target="_blank" rel="noreferrer" className="block truncate text-[10px] font-semibold text-[#FF4F8B] hover:underline">
+                            Mở vị trí trên Google Maps ↗
+                          </a>
+                        ) : (
+                          <span className="block truncate text-[10px] text-[#927D8A]">Đang chờ tín hiệu GPS...</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-[10px] text-[#927D8A]">Vị trí cập nhật liên tục khi Pinkmess được phép chạy trên thiết bị.</p>
+            </div>
+            <button
+              onClick={onStopLocationSharing}
+              className="shrink-0 rounded-xl border border-[#FFB1CA] bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#FF4F8B] hover:bg-[#FFF0F6]"
+            >
+              Dừng
+            </button>
+          </div>
         </div>
       )}
 
@@ -721,6 +768,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onCancelReply={() => setReplyToMessage(null)}
         onTyping={onTyping}
         onRequestLocation={onRequestLocation}
+        isLocationSharing={Boolean(locationSession?.conversationId === conversation.id)}
       />
     </div>
   );
