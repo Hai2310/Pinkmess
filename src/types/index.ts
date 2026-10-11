@@ -94,7 +94,6 @@ export interface Conversation {
   isPinned?: boolean;
   isMuted?: boolean;
   wallpaper?: string;
-  wallpapers?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
@@ -155,4 +154,21 @@ export interface MissedCallRequest {
   createdAt: string;
   status: 'pending' | 'read';
   fromUser: User;
+}
+
+export interface LiveLocationPoint {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  updatedAt: string;
+  mapUrl?: string;
+}
+
+export interface LocationSession {
+  sessionId: string;
+  conversationId: string;
+  requesterId: string;
+  targetUserId: string;
+  startedAt: string;
+  locations: Record<string, LiveLocationPoint>;
 }
