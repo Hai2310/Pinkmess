@@ -35,6 +35,7 @@ interface ChatComposerProps {
   onCancelReply: () => void;
   onTyping: () => void;
   onRequestLocation: () => void;
+  isLocationSharing: boolean;
 }
 
 const chatFonts = [
@@ -52,7 +53,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   replyToMessage,
   onCancelReply,
   onTyping,
-  onRequestLocation
+  onRequestLocation,
+  isLocationSharing
 }) => {
   const [text, setText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -371,8 +373,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             <button
               type="button"
               onClick={onRequestLocation}
-              className="p-2 rounded-2xl text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFE4F0] transition-colors"
-              title="Xin phép chia sẻ vị trí với người này"
+              className={`p-2 rounded-2xl transition-colors ${isLocationSharing ? 'bg-[#FF82AE] text-white shadow-xs' : 'text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFE4F0]'}`}
+              title={isLocationSharing ? 'Đang chia sẻ vị trí trực tiếp' : 'Xin phép chia sẻ vị trí trực tiếp với người này'}
             >
               <MapPin className="w-5 h-5" />
             </button>
