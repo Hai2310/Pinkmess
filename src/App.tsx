@@ -432,6 +432,43 @@ export default function App() {
     setCallState((prev) => ({ ...prev, active: false }));
   };
 
+  // Open a conversation from the global user search.
+  const handleOpenUserChat = async (targetUser: User) => {
+    if (!currentUser || targetUser.id === currentUser.id) return;
+
+    const existingConversation = conversations.find(
+      (conversation) =>
+        conversation.type === 'direct' &&
+        conversation.participants.includes(currentUser.id) &&
+        conversation.participants.includes(targetUser.id)
+    );
+
+    if (existingConversation) {
+      setActiveConversationId(existingConversation.id);
+      setIsMobileChatOpen(true);
+      setCurrentTab('messages');
+      return;
+    }
+
+    const res = await fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'direct',
+        name: targetUser.name,
+        avatar: targetUser.avatar,
+        participants: [currentUser.id, targetUser.id]
+      })
+    });
+
+    if (!res.ok) return;
+    const newConversation = await res.json();
+    setConversations((prev) => [newConversation, ...prev]);
+    setActiveConversationId(newConversation.id);
+    setIsMobileChatOpen(true);
+    setCurrentTab('messages');
+  };
+
   // Create Conversation
   const handleCreateConversation = async (
     type: 'direct' | 'group',
@@ -562,6 +599,7 @@ export default function App() {
                   setActiveConversationId(id);
                   setIsMobileChatOpen(true);
                 }}
+                onSelectUser={handleOpenUserChat}
                 onNewChat={() => setShowNewChatModal(true)}
                 users={users}
                 currentUserId={currentUser.id}
