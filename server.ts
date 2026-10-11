@@ -306,7 +306,6 @@ interface ServerConversation {
   isPinned?: boolean;
   isMuted?: boolean;
   wallpaper?: string;
-  wallpapers?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
   lastMessage?: {
@@ -327,6 +326,22 @@ interface ServerCallRequest {
   status: 'pending' | 'read';
 }
 
+interface ServerLocationPoint {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  updatedAt: string;
+}
+
+interface ServerLocationSession {
+  id: string;
+  conversationId: string;
+  requesterId: string;
+  targetUserId: string;
+  startedAt: string;
+  lastLocations: Record<string, ServerLocationPoint>;
+}
+
 interface Database {
   users: Array<(typeof initialUsers)[number] & { passwordHash?: string }>;
   conversations: ServerConversation[];
@@ -334,6 +349,7 @@ interface Database {
   customPacks: any[];
   pushSubscriptions: Array<{ userId: string; subscription: any; updatedAt: string }>;
   callRequests: ServerCallRequest[];
+  locationSessions: ServerLocationSession[];
 }
 
 let db: Database = {
@@ -342,7 +358,8 @@ let db: Database = {
   messages: [],
   customPacks: [],
   pushSubscriptions: [],
-  callRequests: []
+  callRequests: [],
+  locationSessions: []
 };
 
 function removeLegacyDemoData(raw: Partial<Database>): Database {
@@ -382,6 +399,17 @@ function removeLegacyDemoData(raw: Partial<Database>): Database {
             userIds.has(item?.fromUserId) &&
             userIds.has(item?.targetUserId) &&
             (item?.type === 'audio' || item?.type === 'video')
+        )
+      : [],
+    locationSessions: Array.isArray(raw.locationSessions)
+      ? raw.locationSessions.filter(
+          (item: any) =>
+            item?.id &&
+            item?.conversationId &&
+            conversationIds.has(item.conversationId) &&
+            userIds.has(item?.requesterId) &&
+            userIds.has(item?.targetUserId) &&
+            item.requesterId !== item.targetUserId
         )
       : []
   };
@@ -537,6 +565,10 @@ async function startServer() {
   const socketToUser = new Map<string, string>();
   const userToSockets = new Map<string, Set<string>>();
   const activeCalls = new Map<string, { fromUserId: string; targetUserId: string }>();
+  const activeLocationSessions = new Map<string, ServerLocationSession>(
+    (db.locationSessions || []).map((session) => [session.id, session])
+  );
+  const locationPersistenceAt = new Map<string, number>();
   const locationRequests = new Map<
     string,
     {
@@ -556,6 +588,20 @@ async function startServer() {
     socketIds.forEach((socketId) => io.to(socketId).emit(event, payload));
   };
 
+  const publicLocationSession = (session: ServerLocationSession) => ({
+    sessionId: session.id,
+    conversationId: session.conversationId,
+    requesterId: session.requesterId,
+    targetUserId: session.targetUserId,
+    startedAt: session.startedAt,
+    locations: session.lastLocations
+  });
+
+  const persistLocationSessions = () => {
+    db.locationSessions = Array.from(activeLocationSessions.values()).slice(-50);
+    saveDb();
+  };
+
   const getConversation = (conversationId: string) =>
     db.conversations.find((conversation) => conversation.id === conversationId);
 
@@ -566,10 +612,7 @@ async function startServer() {
     return {
       ...conversation,
       name: otherUser?.name || conversation.name,
-      avatar: otherUser?.avatar || conversation.avatar,
-      wallpaper: viewerId && conversation.wallpapers?.[viewerId]
-        ? conversation.wallpapers[viewerId]
-        : conversation.wallpaper
+      avatar: otherUser?.avatar || conversation.avatar
     };
   };
 
@@ -730,6 +773,12 @@ async function startServer() {
         user.status = 'online';
         saveDb();
       }
+
+      activeLocationSessions.forEach((session) => {
+        if (session.requesterId === userId || session.targetUserId === userId) {
+          socket.emit('location:session-started', publicLocationSession(session));
+        }
+      });
 
       // Broadcast presence
       io.emit('presence:update', {
@@ -925,8 +974,9 @@ async function startServer() {
       emitToConversation(conversationId, 'typing:status', { conversationId, userId, isTyping: false }, socket.id);
     });
 
-    // One-time location sharing. Both people must explicitly accept before
-    // either browser is asked for GPS permission.
+    // Live location sharing. Both people must explicitly accept before either
+    // browser is asked for GPS permission. The browser then sends updates from
+    // watchPosition while the Pinkmess page/PWA is allowed to run.
     socket.on('location:request', (payload: any) => {
       const requesterId = socketToUser.get(socket.id);
       const conversation = getConversation(String(payload?.conversationId || ''));
@@ -934,6 +984,14 @@ async function startServer() {
 
       const targetUserId = conversation.participants.find((userId) => userId !== requesterId);
       if (!targetUserId) return;
+
+      const existingSession = Array.from(activeLocationSessions.values()).find(
+        (session) => session.conversationId === conversation.id
+      );
+      if (existingSession) {
+        socket.emit('location:session-started', publicLocationSession(existingSession));
+        return;
+      }
 
       const request = {
         id: `location_request_${Date.now()}_${randomBytes(3).toString('hex')}`,
@@ -983,15 +1041,80 @@ async function startServer() {
       }
 
       request.status = 'accepted';
-      const consentPayload = {
-        requestId: request.id,
+      const session: ServerLocationSession = {
+        id: `location_session_${Date.now()}_${randomBytes(3).toString('hex')}`,
         conversationId: request.conversationId,
         requesterId: request.requesterId,
-        targetUserId: request.targetUserId
+        targetUserId: request.targetUserId,
+        startedAt: new Date().toISOString(),
+        lastLocations: {}
       };
-      emitToUser(request.requesterId, 'location:consent-granted', consentPayload);
-      emitToUser(request.targetUserId, 'location:consent-granted', consentPayload);
-      setTimeout(() => locationRequests.delete(request.id), 5 * 60 * 1000);
+      activeLocationSessions.set(session.id, session);
+      persistLocationSessions();
+      const sessionPayload = publicLocationSession(session);
+      emitToUser(request.requesterId, 'location:session-started', sessionPayload);
+      emitToUser(request.targetUserId, 'location:session-started', sessionPayload);
+      locationRequests.delete(request.id);
+    });
+
+    socket.on('location:update', (payload: any) => {
+      const userId = socketToUser.get(socket.id);
+      const session = activeLocationSessions.get(String(payload?.sessionId || ''));
+      const latitude = Number(payload?.latitude);
+      const longitude = Number(payload?.longitude);
+      if (
+        !userId ||
+        !session ||
+        (userId !== session.requesterId && userId !== session.targetUserId) ||
+        session.conversationId !== payload?.conversationId ||
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude) ||
+        latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180
+      ) return;
+
+      const point: ServerLocationPoint = {
+        latitude,
+        longitude,
+        accuracy: Number.isFinite(Number(payload?.accuracy)) ? Math.max(0, Number(payload.accuracy)) : undefined,
+        updatedAt: new Date().toISOString()
+      };
+      session.lastLocations[userId] = point;
+      emitToUser(session.requesterId, 'location:updated', {
+        sessionId: session.id,
+        conversationId: session.conversationId,
+        userId,
+        ...point,
+        mapUrl: `https://www.google.com/maps?q=${latitude},${longitude}`
+      });
+      emitToUser(session.targetUserId, 'location:updated', {
+        sessionId: session.id,
+        conversationId: session.conversationId,
+        userId,
+        ...point,
+        mapUrl: `https://www.google.com/maps?q=${latitude},${longitude}`
+      });
+
+      const lastPersistedAt = locationPersistenceAt.get(session.id) || 0;
+      if (Date.now() - lastPersistedAt > 15000) {
+        locationPersistenceAt.set(session.id, Date.now());
+        persistLocationSessions();
+      }
+    });
+
+    socket.on('location:stop', (payload: any) => {
+      const userId = socketToUser.get(socket.id);
+      const session = activeLocationSessions.get(String(payload?.sessionId || ''));
+      if (!userId || !session || (userId !== session.requesterId && userId !== session.targetUserId)) return;
+
+      activeLocationSessions.delete(session.id);
+      locationPersistenceAt.delete(session.id);
+      persistLocationSessions();
+      const stoppedPayload = { sessionId: session.id, conversationId: session.conversationId, stoppedBy: userId };
+      emitToUser(session.requesterId, 'location:session-stopped', stoppedPayload);
+      emitToUser(session.targetUserId, 'location:session-stopped', stoppedPayload);
     });
 
     // WebRTC Calling Signaling
@@ -1498,10 +1621,9 @@ async function startServer() {
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
     const userId = String(req.body.userId || '');
     if (!conv.participants.includes(userId)) return res.status(403).json({ error: 'Bạn không thuộc cuộc trò chuyện này.' });
-    const { wallpaper, userId: _userId, ...updates } = req.body || {};
-    if (typeof wallpaper === 'string') {
-      conv.wallpapers = { ...(conv.wallpapers || {}), [userId]: wallpaper.slice(0, 5500000) };
-    }
+    const updates = { ...(req.body || {}) };
+    delete updates.userId;
+    if (typeof updates.wallpaper === 'string') updates.wallpaper = updates.wallpaper.slice(0, 5500000);
     Object.assign(conv, updates);
     saveDb();
     emitToConversation(conv.id, 'conversation:updated', conv);
