@@ -126,7 +126,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setForwardingMessage(null);
   }, [conversation, currentUser.id]);
 
-  useEffect(() => () => clearMessageLongPress(), []);
+  // Keep this cleanup independent from declarations below the empty-state return.
+  // New accounts can have no conversation, then switching tabs unmounts ChatWindow.
+  useEffect(
+    () => () => {
+      if (messageLongPressTimerRef.current !== null) {
+        window.clearTimeout(messageLongPressTimerRef.current);
+        messageLongPressTimerRef.current = null;
+      }
+    },
+    []
+  );
 
   if (!conversation) {
     return (
