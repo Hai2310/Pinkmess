@@ -42,6 +42,7 @@ export default function App() {
 
   // Modals state
   const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [newChatInitialType, setNewChatInitialType] = useState<'direct' | 'group'>('direct');
   const [showCustomStickerModal, setShowCustomStickerModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
@@ -847,6 +848,41 @@ export default function App() {
     });
   };
 
+  const handleUpdateConversation = async (updates: Partial<Conversation>) => {
+    if (!currentUser || !activeConversationId) return;
+    setConversations((previous) =>
+      previous.map((conversation) =>
+        conversation.id === activeConversationId ? { ...conversation, ...updates } : conversation
+      )
+    );
+    await fetch(`/api/conversations/${activeConversationId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, ...updates })
+    }).catch((error) => console.warn('Could not update conversation settings:', error));
+  };
+
+  const handleForwardMessage = (message: Message, targetConversationId: string) => {
+    if (!currentUser || message.type === 'LOCATION') return;
+    getSocket().emit('message:send', {
+      id: `msg_forward_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      conversationId: targetConversationId,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderAvatar: currentUser.avatar,
+      type: message.type,
+      content: message.content,
+      stickerId: message.stickerId,
+      stickerUrl: message.stickerUrl,
+      stickerPackId: message.stickerPackId,
+      stickerName: message.stickerName,
+      isAnimatedSticker: message.isAnimatedSticker,
+      fontFamily: message.fontFamily,
+      audioDuration: message.audioDuration,
+      attachments: message.attachments
+    });
+  };
+
   // Toggle Favorite Sticker
   const handleToggleFavoriteSticker = (stickerId: string) => {
     if (!currentUser) return;
@@ -935,7 +971,10 @@ export default function App() {
                   setActiveConversationId(id);
                   setIsMobileChatOpen(true);
                 }}
-                onNewChat={() => setShowNewChatModal(true)}
+                onNewChat={() => {
+                  setNewChatInitialType('direct');
+                  setShowNewChatModal(true);
+                }}
                 users={users}
                 currentUserId={currentUser.id}
                 notificationPermission={getNotificationPermission()}
@@ -965,6 +1004,13 @@ export default function App() {
                 onRequestLocation={handleRequestLocation}
                 locationSession={locationSession?.conversationId === activeConversationId ? locationSession : null}
                 onStopLocationSharing={stopLocationSharing}
+                availableConversations={conversations}
+                onUpdateConversation={handleUpdateConversation}
+                onCreateGroupChat={() => {
+                  setNewChatInitialType('group');
+                  setShowNewChatModal(true);
+                }}
+                onForwardMessage={handleForwardMessage}
               />
             </div>
           </>
@@ -1073,6 +1119,7 @@ export default function App() {
         <NewChatModal
           users={users}
           currentUserId={currentUser.id}
+          initialChatType={newChatInitialType}
           onClose={() => setShowNewChatModal(false)}
           onCreateConversation={handleCreateConversation}
         />
