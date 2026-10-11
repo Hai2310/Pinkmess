@@ -305,6 +305,7 @@ interface ServerConversation {
   participants: string[];
   isPinned?: boolean;
   isMuted?: boolean;
+  nicknames?: Record<string, string>;
   wallpaper?: string;
   createdAt: string;
   updatedAt: string;
