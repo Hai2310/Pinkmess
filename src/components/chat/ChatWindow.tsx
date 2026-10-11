@@ -17,7 +17,9 @@ import {
   Download,
   Palette,
   Sparkles,
-  Heart
+  Heart,
+  MapPin,
+  Upload
 } from 'lucide-react';
 import { Conversation, Message, User } from '../../types';
 import { ChatComposer } from './ChatComposer';
@@ -43,6 +45,7 @@ interface ChatWindowProps {
   recentStickers: string[];
   onToggleFavoriteSticker: (id: string) => void;
   onChangeWallpaper: (wallpaper: string) => void;
+  onRequestLocation: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -63,7 +66,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   favoriteStickers,
   recentStickers,
   onToggleFavoriteSticker,
-  onChangeWallpaper
+  onChangeWallpaper,
+  onRequestLocation
 }) => {
   const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
@@ -72,6 +76,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [showWallpaperMenu, setShowWallpaperMenu] = useState(false);
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const wallpaperUploadRef = useRef<HTMLInputElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
@@ -128,11 +133,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     { id: 'sakura-garden', label: 'Vườn Sakura', className: 'wallpaper-sakura-garden' },
     { id: 'lavender-dreams', label: 'Lavender Mộng Mơ', className: 'wallpaper-lavender-dreams' },
     { id: 'bunny-moonlight', label: 'Trăng Đêm Bunny', className: 'wallpaper-bunny-moonlight' },
+    { id: 'candy-sparkle', label: 'Kẹo Lấp Lánh', className: 'wallpaper-candy-sparkle' },
+    { id: 'bunny-garden', label: 'Vườn Thỏ Nắng', className: 'wallpaper-bunny-garden' },
+    { id: 'rainbow-hearts', label: 'Cầu Vồng Tim', className: 'wallpaper-rainbow-hearts' },
+    { id: 'night-stars', label: 'Đêm Sao Lung Linh', className: 'wallpaper-night-stars' },
     { id: 'minimal-white', label: 'Trắng Tinh Khôi', className: 'wallpaper-minimal-white' }
   ];
 
+  const isCustomWallpaper = Boolean(
+    conversation.wallpaper?.startsWith('data:image/') || conversation.wallpaper?.startsWith('https://')
+  );
   const currentWallpaperClass =
-    wallpapers.find((w) => w.id === conversation.wallpaper)?.className || 'wallpaper-pattern-bunny';
+    isCustomWallpaper
+      ? 'wallpaper-custom'
+      : wallpapers.find((w) => w.id === conversation.wallpaper)?.className || 'wallpaper-pattern-bunny';
+  const currentWallpaperStyle = isCustomWallpaper
+    ? {
+        backgroundImage: `linear-gradient(rgba(255, 253, 251, 0.2), rgba(255, 253, 251, 0.2)), url("${conversation.wallpaper}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }
+    : undefined;
 
   const reactionEmojis = ['💖', '🐰', '🥰', '🤣', '😭', '👏', '🌸'];
 
@@ -226,11 +247,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </button>
 
             {showWallpaperMenu && (
-              <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-[#F7DDE8] p-2 z-50 animate-in fade-in duration-150">
+              <div className="absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-3xl shadow-xl border border-[#F7DDE8] p-2.5 z-50 animate-in fade-in duration-150">
                 <div className="text-[11px] font-bold text-[#927D8A] px-2 py-1 uppercase tracking-wider">
                   Hình nền trò chuyện:
                 </div>
-                <div className="space-y-1 mt-1">
+                <div className="grid grid-cols-2 gap-1.5 mt-1 max-h-72 overflow-y-auto">
                   {wallpapers.map((wp) => (
                     <button
                       key={wp.id}
@@ -238,7 +259,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         onChangeWallpaper(wp.id);
                         setShowWallpaperMenu(false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 rounded-xl text-xs transition-colors flex items-center justify-between ${
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-colors flex items-center justify-between ${
                         conversation.wallpaper === wp.id
                           ? 'bg-[#FFE4F0] text-[#FF4F8B] font-semibold'
                           : 'hover:bg-[#FFF0F6] text-[#4C3441]'
@@ -249,6 +270,33 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     </button>
                   ))}
                 </div>
+                <input
+                  ref={wallpaperUploadRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (!file) return;
+                    if (file.size > 4 * 1024 * 1024) {
+                      window.alert('Ảnh nền nên nhỏ hơn 4MB để chat tải nhanh và mượt nhé.');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      onChangeWallpaper(String(reader.result || ''));
+                      setShowWallpaperMenu(false);
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+                <button
+                  onClick={() => wallpaperUploadRef.current?.click()}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[#FFB1CA] bg-[#FFF8FB] px-3 py-2 text-xs font-bold text-[#FF4F8B] hover:bg-[#FFF0F6]"
+                >
+                  <Upload className="h-4 w-4" /> Dùng ảnh nền của bạn
+                </button>
               </div>
             )}
           </div>
@@ -261,8 +309,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <div className="flex items-center gap-2 truncate">
             <Pin className="w-3.5 h-3.5 text-[#FF4F8B] shrink-0 fill-[#FF4F8B]" />
             <span className="font-semibold text-[#FF4F8B]">Tin nhắn đã ghim:</span>
-            <span className="truncate text-[#927D8A]">
-              {pinnedMessages[0].type === 'STICKER' ? '🐰 [Sticker]' : pinnedMessages[0].content}
+              <span className="truncate text-[#927D8A]">
+              {pinnedMessages[0].type === 'STICKER'
+                ? '🐰 [Sticker]'
+                : pinnedMessages[0].type === 'LOCATION'
+                ? '📍 [Vị trí Google Maps]'
+                : pinnedMessages[0].content}
             </span>
           </div>
           <button
@@ -275,7 +327,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       )}
 
       {/* Main Message Stream */}
-      <div className={`flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-4 ${currentWallpaperClass}`}>
+      <div className={`flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-4 ${currentWallpaperClass}`} style={currentWallpaperStyle}>
         {messages.length === 0 ? (
           <div className="text-center py-20">
             <div className="w-20 h-20 mx-auto rounded-full bg-white/80 backdrop-blur-xs border-2 border-[#FFD6E5] flex items-center justify-center text-3xl shadow-sm mb-3">
@@ -323,7 +375,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       }`}
                     >
                       <span className="font-semibold text-[#FF4F8B]">Trả lời {msg.replyToMessage.senderName}: </span>
-                      <span>{msg.replyToMessage.type === 'STICKER' ? '🐰 [Sticker]' : msg.replyToMessage.content}</span>
+                      <span>
+                        {msg.replyToMessage.type === 'STICKER'
+                          ? '🐰 [Sticker]'
+                          : msg.replyToMessage.type === 'LOCATION'
+                          ? '📍 [Vị trí Google Maps]'
+                          : msg.replyToMessage.content}
+                      </span>
                     </div>
                   )}
 
@@ -351,7 +409,40 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                           );
                         })()}
                       </div>
-                    ) : /* 2. AUDIO TYPE */
+                    ) : /* 2. LOCATION TYPE */
+                    msg.type === 'LOCATION' ? (
+                      (() => {
+                        const mapUrl = msg.locationMapUrl ||
+                          (Number.isFinite(msg.locationLatitude) && Number.isFinite(msg.locationLongitude)
+                            ? `https://www.google.com/maps?q=${msg.locationLatitude},${msg.locationLongitude}`
+                            : '#');
+                        return (
+                          <a
+                            href={mapUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`block min-w-56 rounded-3xl border p-3 shadow-xs transition-transform hover:scale-[1.02] ${
+                              isMe
+                                ? 'border-transparent bg-gradient-to-r from-[#FF82AE] to-[#FF6F9F] text-white'
+                                : 'border-[#F7DDE8] bg-white text-[#4C3441]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${isMe ? 'bg-white/20' : 'bg-[#FFF0F6]'}`}>
+                                <MapPin className={`h-5 w-5 ${isMe ? 'text-white' : 'text-[#FF4F8B]'}`} />
+                              </span>
+                              <span>
+                                <span className="block text-sm font-bold">{msg.content || 'Đã chia sẻ vị trí'}</span>
+                                <span className="block text-[10px] opacity-75">Mở vị trí trên Google Maps ↗</span>
+                              </span>
+                            </div>
+                            {msg.locationAccuracy && (
+                              <span className="mt-2 block text-[10px] opacity-75">Độ chính xác khoảng {Math.round(msg.locationAccuracy)}m</span>
+                            )}
+                          </a>
+                        );
+                      })()
+                    ) : /* 3. AUDIO TYPE */
                     msg.type === 'AUDIO' ? (
                       <div
                         className={`p-3 rounded-3xl flex items-center gap-3 border shadow-xs ${
@@ -393,12 +484,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                           </div>
                         </div>
                       </div>
-                    ) : /* 3. IMAGE TYPE */
+                    ) : /* 4. IMAGE TYPE */
                     msg.type === 'IMAGE' ? (
                       <div className="rounded-3xl overflow-hidden border border-[#F7DDE8] shadow-sm max-w-xs">
                         <img src={msg.content} alt="Attachment" className="w-full h-auto object-cover max-h-72" />
                       </div>
-                    ) : /* 4. FILE TYPE */
+                    ) : /* 5. FILE TYPE */
                     msg.type === 'FILE' ? (
                       <div
                         className={`p-3 rounded-3xl flex items-center gap-3 border ${
@@ -416,13 +507,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         </div>
                       </div>
                     ) : (
-                      /* 5. TEXT TYPE */
+                      /* 6. TEXT TYPE */
                       <div
                         className={`px-4 py-2.5 rounded-3xl text-sm leading-relaxed border break-words shadow-2xs ${
                           isMe
                             ? 'bg-gradient-to-r from-[#FF82AE] to-[#FF6F9F] text-white border-transparent rounded-br-sm'
                             : 'bg-white text-[#4C3441] border-[#F7DDE8] rounded-bl-sm'
                         }`}
+                        style={{ fontFamily: msg.fontFamily || undefined }}
                       >
                         {isEditing ? (
                           <div className="flex flex-col gap-2">
@@ -628,6 +720,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         replyToMessage={replyToMessage}
         onCancelReply={() => setReplyToMessage(null)}
         onTyping={onTyping}
+        onRequestLocation={onRequestLocation}
       />
     </div>
   );
