@@ -1,0 +1,131 @@
+{
+  "collectionId": "pinkmess-github",
+  "name": "Pinkmess GitHub Sticker Vault",
+  "description": "Các bộ sticker hài hước, đáng yêu và ảnh động được đóng gói riêng cho Pinkmess.",
+  "assetBasePath": "/stickers/pinkmess-github",
+  "packs": [
+    {
+      "id": "sparky-basics",
+      "name": "Sparky Basics",
+      "displayName": "Sparky — Cơ Bản",
+      "category": "Animated Stickers",
+      "cover": "packs/sparky-basics/cover.gif",
+      "count": 10,
+      "animated": true,
+      "stickers": [
+        { "id": "sparky-basics-01", "name": "Chào nha", "file": "packs/sparky-basics/01_wave_hi.gif", "animated": true, "keywords": ["chào", "hi", "wave"] },
+        { "id": "sparky-basics-02", "name": "Đang nghĩ", "file": "packs/sparky-basics/02_think_en.gif", "animated": true, "keywords": ["nghĩ", "hmm", "thinking"] },
+        { "id": "sparky-basics-03", "name": "Nghĩ bằng tiếng Trung", "file": "packs/sparky-basics/03_think_cn.gif", "animated": true, "keywords": ["nghĩ", "中文", "thinking"] },
+        { "id": "sparky-basics-04", "name": "Yeah chiến thắng", "file": "packs/sparky-basics/04_jump_yayyy.gif", "animated": true, "keywords": ["vui", "yay", "win"] },
+        { "id": "sparky-basics-05", "name": "Bye bye", "file": "packs/sparky-basics/05_run_bye.gif", "animated": true, "keywords": ["bye", "đi", "chạy"] },
+        { "id": "sparky-basics-06", "name": "Chạy thôi", "file": "packs/sparky-basics/06_run_cn.gif", "animated": true, "keywords": ["chạy", "đi", "run"] },
+        { "id": "sparky-basics-07", "name": "Chuẩn luôn", "file": "packs/sparky-basics/07_thumbsup.gif", "animated": true, "keywords": ["ok", "đồng ý", "thumbs up"] },
+        { "id": "sparky-basics-08", "name": "OK", "file": "packs/sparky-basics/08_ok.gif", "animated": true, "keywords": ["ok", "được", "yes"] },
+        { "id": "sparky-basics-09", "name": "Lẩm bẩm", "file": "packs/sparky-basics/09_murmur.gif", "animated": true, "keywords": ["mệt", "lẩm bẩm", "sleepy"] },
+        { "id": "sparky-basics-10", "name": "Nạp năng lượng", "file": "packs/sparky-basics/10_charge.gif", "animated": true, "keywords": ["năng lượng", "sạc", "charge"] }
+      ]
+    },
+    {
+      "id": "sparky-ai",
+      "name": "Sparky AI",
+      "displayName": "Sparky — AI Tấu Hài",
+      "category": "Animated Stickers",
+      "cover": "packs/sparky-ai/cover.gif",
+      "count": 8,
+      "animated": true,
+      "stickers": [
+        { "id": "sparky-ai-01", "name": "AI ảo giác", "file": "packs/sparky-ai/11_hallucinate.gif", "animated": true, "keywords": ["AI", "ảo giác", "hallucinate"] },
+        { "id": "sparky-ai-02", "name": "Trực on-call", "file": "packs/sparky-ai/12_oncall.gif", "animated": true, "keywords": ["trực", "mệt", "oncall"] },
+        { "id": "sparky-ai-03", "name": "Vibe coding", "file": "packs/sparky-ai/13_vibecoding.gif", "animated": true, "keywords": ["code", "lập trình", "vibe"] },
+        { "id": "sparky-ai-04", "name": "Quantized", "file": "packs/sparky-ai/14_quantized.gif", "animated": true, "keywords": ["AI", "model", "quantized"] },
+        { "id": "sparky-ai-05", "name": "Cân tải", "file": "packs/sparky-ai/15_loadbalance.gif", "animated": true, "keywords": ["server", "cân tải", "load"] },
+        { "id": "sparky-ai-06", "name": "Nhiều GPU", "file": "packs/sparky-ai/16_multigpu.gif", "animated": true, "keywords": ["GPU", "máy", "AI"] },
+        { "id": "sparky-ai-07", "name": "Chờ token đầu tiên", "file": "packs/sparky-ai/17_ttft.gif", "animated": true, "keywords": ["chờ", "token", "loading"] },
+        { "id": "sparky-ai-08", "name": "Batching", "file": "packs/sparky-ai/18_batching.gif", "animated": true, "keywords": ["batch", "AI", "request"] }
+      ]
+    },
+    {
+      "id": "sparky-reactions",
+      "name": "Sparky Reactions",
+      "displayName": "Sparky — Phản Ứng",
+      "category": "Animated Stickers",
+      "cover": "packs/sparky-reactions/cover.gif",
+      "count": 6,
+      "animated": true,
+      "stickers": [
+        { "id": "sparky-reactions-01", "name": "Đỉnh của chóp", "file": "packs/sparky-reactions/20_niubi.gif", "animated": true, "keywords": ["đỉnh", "awesome", "牛逼"] },
+        { "id": "sparky-reactions-02", "name": "666", "file": "packs/sparky-reactions/21_666.gif", "animated": true, "keywords": ["666", "hay", "nice"] },
+        { "id": "sparky-reactions-03", "name": "Cười haha", "file": "packs/sparky-reactions/22_hahaha.gif", "animated": true, "keywords": ["cười", "haha", "lol"] },
+        { "id": "sparky-reactions-04", "name": "Bực mình", "file": "packs/sparky-reactions/23_angry.gif", "animated": true, "keywords": ["giận", "bực", "angry"] },
+        { "id": "sparky-reactions-05", "name": "Chuẩn", "file": "packs/sparky-reactions/24_yep.gif", "animated": true, "keywords": ["đúng", "yes", "yep"] },
+        { "id": "sparky-reactions-06", "name": "Cảm ơn", "file": "packs/sparky-reactions/25_thanks.gif", "animated": true, "keywords": ["cảm ơn", "thanks", "thank you"] }
+      ]
+    },
+    {
+      "id": "openmoji-reactions",
+      "name": "OpenMoji Reactions",
+      "displayName": "OpenMoji — Mặt Hài",
+      "category": "Funny & Meme",
+      "cover": "packs/openmoji-reactions/cover.png",
+      "count": 12,
+      "stickers": [
+        { "id": "openmoji-reactions-01", "name": "Cười lăn", "file": "packs/openmoji-reactions/01.png", "keywords": ["cười", "haha", "🤣"] },
+        { "id": "openmoji-reactions-02", "name": "Cười chảy nước mắt", "file": "packs/openmoji-reactions/02.png", "keywords": ["cười", "khóc", "🤣"] },
+        { "id": "openmoji-reactions-03", "name": "Cười mà đau", "file": "packs/openmoji-reactions/03.png", "keywords": ["buồn", "cười", "🥲"] },
+        { "id": "openmoji-reactions-04", "name": "Khóc to", "file": "packs/openmoji-reactions/04.png", "keywords": ["khóc", "buồn", "😭"] },
+        { "id": "openmoji-reactions-05", "name": "Hú hồn", "file": "packs/openmoji-reactions/05.png", "keywords": ["sốc", "sợ", "😱"] },
+        { "id": "openmoji-reactions-06", "name": "Đỏ mặt", "file": "packs/openmoji-reactions/06.png", "keywords": ["ngại", "đỏ mặt", "😳"] },
+        { "id": "openmoji-reactions-07", "name": "Ờ ha", "file": "packs/openmoji-reactions/07.png", "keywords": ["mỉa", "nhìn", "🙄"] },
+        { "id": "openmoji-reactions-08", "name": "Cười trừ", "file": "packs/openmoji-reactions/08.png", "keywords": ["cười trừ", "ngại", "😅"] },
+        { "id": "openmoji-reactions-09", "name": "Buồn ngủ", "file": "packs/openmoji-reactions/09.png", "keywords": ["ngủ", "mệt", "🥱"] },
+        { "id": "openmoji-reactions-10", "name": "Đang suy nghĩ", "file": "packs/openmoji-reactions/10.png", "keywords": ["nghĩ", "hmm", "🤔"] },
+        { "id": "openmoji-reactions-11", "name": "Cọc rồi", "file": "packs/openmoji-reactions/11.png", "keywords": ["giận", "bực", "😤"] },
+        { "id": "openmoji-reactions-12", "name": "Lầy", "file": "packs/openmoji-reactions/12.png", "keywords": ["lầy", "điên", "🤪"] }
+      ]
+    },
+    {
+      "id": "openmoji-animals",
+      "name": "OpenMoji Animals",
+      "displayName": "OpenMoji — Muôn Loài",
+      "category": "Funny & Meme",
+      "cover": "packs/openmoji-animals/cover.png",
+      "count": 12,
+      "stickers": [
+        { "id": "openmoji-animals-01", "name": "Mèo đen", "file": "packs/openmoji-animals/01.png", "keywords": ["mèo", "cat", "🐈"] },
+        { "id": "openmoji-animals-02", "name": "Mèo nhà", "file": "packs/openmoji-animals/02.png", "keywords": ["mèo", "cat", "🐱"] },
+        { "id": "openmoji-animals-03", "name": "Mèo cười", "file": "packs/openmoji-animals/03.png", "keywords": ["mèo", "cười", "😺"] },
+        { "id": "openmoji-animals-04", "name": "Mèo mê", "file": "packs/openmoji-animals/04.png", "keywords": ["mèo", "yêu", "😻"] },
+        { "id": "openmoji-animals-05", "name": "Mèo đểu", "file": "packs/openmoji-animals/05.png", "keywords": ["mèo", "đểu", "😼"] },
+        { "id": "openmoji-animals-06", "name": "Mèo hôn", "file": "packs/openmoji-animals/06.png", "keywords": ["mèo", "hôn", "😽"] },
+        { "id": "openmoji-animals-07", "name": "Mèo hú hồn", "file": "packs/openmoji-animals/07.png", "keywords": ["mèo", "sốc", "🙀"] },
+        { "id": "openmoji-animals-08", "name": "Mèo khóc", "file": "packs/openmoji-animals/08.png", "keywords": ["mèo", "khóc", "😿"] },
+        { "id": "openmoji-animals-09", "name": "Mèo giận", "file": "packs/openmoji-animals/09.png", "keywords": ["mèo", "giận", "😾"] },
+        { "id": "openmoji-animals-10", "name": "Cún", "file": "packs/openmoji-animals/10.png", "keywords": ["chó", "cún", "🐶"] },
+        { "id": "openmoji-animals-11", "name": "Chuột hamster", "file": "packs/openmoji-animals/11.png", "keywords": ["chuột", "hamster", "🐹"] },
+        { "id": "openmoji-animals-12", "name": "Ếch", "file": "packs/openmoji-animals/12.png", "keywords": ["ếch", "frog", "🐸"] }
+      ]
+    },
+    {
+      "id": "openmoji-cute",
+      "name": "OpenMoji Cute Hearts",
+      "displayName": "OpenMoji — Tim Kẹo Ngọt",
+      "category": "Love & Romance",
+      "cover": "packs/openmoji-cute/cover.png",
+      "count": 12,
+      "stickers": [
+        { "id": "openmoji-cute-01", "name": "Tim lấp lánh", "file": "packs/openmoji-cute/01.png", "keywords": ["tim", "yêu", "💕"] },
+        { "id": "openmoji-cute-02", "name": "Tim xoay", "file": "packs/openmoji-cute/02.png", "keywords": ["tim", "yêu", "💖"] },
+        { "id": "openmoji-cute-03", "name": "Tim hồng", "file": "packs/openmoji-cute/03.png", "keywords": ["tim", "hồng", "💗"] },
+        { "id": "openmoji-cute-04", "name": "Tim cam", "file": "packs/openmoji-cute/04.png", "keywords": ["tim", "cam", "💘"] },
+        { "id": "openmoji-cute-05", "name": "Tim xanh", "file": "packs/openmoji-cute/05.png", "keywords": ["tim", "xanh", "💙"] },
+        { "id": "openmoji-cute-06", "name": "Tim xanh lá", "file": "packs/openmoji-cute/06.png", "keywords": ["tim", "xanh", "💚"] },
+        { "id": "openmoji-cute-07", "name": "Tim vàng", "file": "packs/openmoji-cute/07.png", "keywords": ["tim", "vàng", "💛"] },
+        { "id": "openmoji-cute-08", "name": "Tim tím", "file": "packs/openmoji-cute/08.png", "keywords": ["tim", "tím", "💜"] },
+        { "id": "openmoji-cute-09", "name": "Tim quà", "file": "packs/openmoji-cute/09.png", "keywords": ["tim", "quà", "💝"] },
+        { "id": "openmoji-cute-10", "name": "Tim mũi tên", "file": "packs/openmoji-cute/10.png", "keywords": ["tim", "yêu", "💞"] },
+        { "id": "openmoji-cute-11", "name": "Tim hai bên", "file": "packs/openmoji-cute/11.png", "keywords": ["tim", "đôi", "💟"] },
+        { "id": "openmoji-cute-12", "name": "Thư tình", "file": "packs/openmoji-cute/12.png", "keywords": ["thư", "yêu", "💌"] }
+      ]
+    }
+  ]
+}

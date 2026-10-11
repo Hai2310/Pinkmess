@@ -23,6 +23,7 @@
     background-color: var(--cream-white);
     color: var(--warm-text);
     min-width: 320px;
+    overflow: hidden;
   }
 
   #root {
@@ -65,7 +66,17 @@ textarea:focus-visible {
   background:
     radial-gradient(circle at 12% 8%, rgba(255, 214, 229, 0.42), transparent 28%),
     radial-gradient(circle at 96% 2%, rgba(233, 213, 255, 0.24), transparent 24%),
+    linear-gradient(rgba(255, 253, 251, 0.76), rgba(255, 253, 251, 0.9)),
+    url('/assets/pinkmess-iphone-wallpaper.png') center / cover fixed,
     #fffdfb;
+  background-blend-mode: screen, screen, normal, normal, normal;
+}
+
+@media (max-width: 767px) {
+  .pinkmess-app-bg {
+    background-position: center top;
+    background-size: auto 100%, auto 100%, auto 100%, cover, auto;
+  }
 }
 
 /* Bunny keyframes */

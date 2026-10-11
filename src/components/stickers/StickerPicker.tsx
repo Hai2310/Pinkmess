@@ -140,13 +140,13 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       </div>
 
       {/* Category Tabs */}
-      <div className="flex items-center gap-1.5 px-3 py-2 bg-[#FFFDFB] border-b border-[#F7DDE8] overflow-x-auto no-scrollbar shrink-0">
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-[#FFFDFB] border-b border-[#F7DDE8] overflow-x-auto overscroll-x-contain no-scrollbar shrink-0 snap-x snap-mandatory">
         <button
           onClick={() => {
             setSelectedPackId('recent');
             setSearchQuery('');
           }}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+          className={`flex shrink-0 snap-start items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
             selectedPackId === 'recent' && !searchQuery
               ? 'bg-[#FF82AE] text-white font-semibold shadow-xs'
               : 'bg-[#FFF0F6] text-[#927D8A] hover:bg-[#FFE4F0]'
@@ -160,7 +160,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             setSelectedPackId('favorites');
             setSearchQuery('');
           }}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+          className={`flex shrink-0 snap-start items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
             selectedPackId === 'favorites' && !searchQuery
               ? 'bg-[#FF82AE] text-white font-semibold shadow-xs'
               : 'bg-[#FFF0F6] text-[#927D8A] hover:bg-[#FFE4F0]'
@@ -176,7 +176,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
               setSelectedPackId(p.id);
               setSearchQuery('');
             }}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+            className={`flex shrink-0 snap-start items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
               selectedPackId === p.id && !searchQuery
                 ? 'bg-[#FF82AE] text-white font-semibold shadow-xs'
                 : 'bg-[#FFF0F6] text-[#927D8A] hover:bg-[#FFE4F0]'
@@ -197,13 +197,13 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             <p className="text-[11px] text-[#927D8A] mt-1">Thử tìm bằng từ khoá khác nhé!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-4 gap-3">
             {displayedStickers.map((stk) => {
               const isFav = favoriteStickerIds.includes(stk.id);
               return (
                 <div
                   key={stk.id}
-                  className="group relative bg-[#FFF0F6]/40 hover:bg-[#FFF0F6] rounded-2xl p-2 border border-[#F7DDE8] hover:border-[#FF82AE] flex flex-col items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-md"
+                  className="group relative bg-[#FFF0F6]/40 hover:bg-[#FFF0F6] rounded-2xl p-2.5 border border-[#F7DDE8] hover:border-[#FF82AE] flex flex-col items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-md"
                 >
                   {/* Sticker image or SVG */}
                   <div

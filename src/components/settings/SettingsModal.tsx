@@ -183,21 +183,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-4">
                 <div className="p-3 rounded-2xl bg-[#FFF0F6] border border-[#FFD6E5]">
                   <h5 className="font-bold text-xs text-[#FF4F8B] flex items-center gap-1.5">
-                    <RefreshCw className="w-3.5 h-3.5" /> Khôi phục dữ liệu Demo
+                    <RefreshCw className="w-3.5 h-3.5" /> Xoá dữ liệu trò chuyện
                   </h5>
                   <p className="text-[11px] text-[#927D8A] mt-1 leading-relaxed">
-                    Khôi phục lại danh sách tin nhắn, phòng chat và danh bạ mẫu ban đầu của Pinkmess.
+                    Xoá các cuộc trò chuyện và sticker tự tạo trên máy chủ của Pinkmess. Tài khoản và hồ sơ của bạn vẫn được giữ lại.
                   </p>
                   <button
                     onClick={() => {
-                      if (confirm('Bạn có chắc chắn muốn đặt lại dữ liệu demo mặc định?')) {
+                      if (confirm('Bạn có chắc chắn muốn xoá dữ liệu trò chuyện của Pinkmess không?')) {
                         onResetDemo();
                         onClose();
                       }
                     }}
                     className="mt-3 px-3 py-1.5 rounded-xl bg-[#FF4F8B] text-white text-xs font-bold hover:bg-[#FF6F9F]"
                   >
-                    Khôi phục ngay
+                    Xoá dữ liệu chat
                   </button>
                 </div>
                 <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200">

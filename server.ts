@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -13,6 +14,13 @@ const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'hustmess_db.json');
+
+const LEGACY_DEMO_USER_IDS = new Set(['user_bunny', 'user_linh', 'user_hoa', 'user_nam']);
+const LEGACY_DEMO_CONVERSATION_IDS = new Set(['conv_bunny_linh', 'conv_group_cute', 'conv_bunny_nam']);
+
+type GoogleAuthResult = { user: any; createdAt: number };
+const googleAuthStates = new Map<string, number>();
+const googleAuthResults = new Map<string, GoogleAuthResult>();
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -282,16 +290,45 @@ interface Database {
 }
 
 let db: Database = {
-  users: initialUsers,
-  conversations: initialConversations,
-  messages: initialMessages as ServerMessage[],
+  users: [],
+  conversations: [],
+  messages: [],
   customPacks: []
 };
+
+function removeLegacyDemoData(raw: Partial<Database>): Database {
+  const users = (Array.isArray(raw.users) ? raw.users : []).filter(
+    (user: any) =>
+      !LEGACY_DEMO_USER_IDS.has(user.id) &&
+      !String(user.id || '').startsWith('user_g_') &&
+      !user.isDemo
+  );
+  const userIds = new Set(users.map((user: any) => user.id));
+  const conversations = (Array.isArray(raw.conversations) ? raw.conversations : []).filter((conversation: any) => {
+    if (LEGACY_DEMO_CONVERSATION_IDS.has(conversation.id)) return false;
+    const participants = Array.isArray(conversation.participants)
+      ? conversation.participants.filter((participantId: string) => userIds.has(participantId))
+      : [];
+    conversation.participants = participants;
+    return participants.length >= 2;
+  });
+  const conversationIds = new Set(conversations.map((conversation: any) => conversation.id));
+  const messages = (Array.isArray(raw.messages) ? raw.messages : []).filter(
+    (message: any) => conversationIds.has(message.conversationId) && userIds.has(message.senderId)
+  );
+
+  return {
+    users: users as Database['users'],
+    conversations: conversations as ServerConversation[],
+    messages: messages as ServerMessage[],
+    customPacks: Array.isArray(raw.customPacks) ? raw.customPacks : []
+  };
+}
 
 if (fs.existsSync(DB_FILE)) {
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    db = JSON.parse(raw);
+    db = removeLegacyDemoData(JSON.parse(raw));
     // Ensure all users have bunnyId
     db.users.forEach((u: any) => {
       if (!u.bunnyId) {
@@ -306,6 +343,7 @@ if (fs.existsSync(DB_FILE)) {
     console.log('[DB] Loaded persistent data successfully.');
   } catch (err) {
     console.error('[DB] Failed to parse db file, re-initializing.', err);
+    saveDb();
   }
 } else {
   saveDb();
@@ -338,6 +376,64 @@ function toPublicUser(user: any) {
   return publicUser;
 }
 
+function getPublicBaseUrl(req: express.Request) {
+  const configuredUrl = process.env.APP_URL?.trim().replace(/\/$/, '');
+  if (configuredUrl && /^https?:\/\//i.test(configuredUrl) && !configuredUrl.includes('MY_APP_URL')) {
+    return configuredUrl;
+  }
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol).split(',')[0];
+  return `${forwardedProto}://${req.get('host')}`;
+}
+
+function getGoogleRedirectUri(req: express.Request) {
+  return (
+    process.env.GOOGLE_REDIRECT_URI?.trim() ||
+    `${getPublicBaseUrl(req)}/api/auth/google/callback`
+  );
+}
+
+function createGoogleUser(profile: { sub?: string; email?: string; name?: string; picture?: string }) {
+  const email = profile.email?.trim().toLowerCase();
+  if (!email) throw new Error('Google không trả về email tài khoản.');
+
+  let user: any = db.users.find((candidate: any) => candidate.email?.toLowerCase() === email);
+  if (user) {
+    user.name = profile.name?.trim() || user.name;
+    user.avatar = profile.picture || user.avatar;
+    user.authProvider = 'google';
+    user.googleSubject = profile.sub || user.googleSubject;
+    user.status = 'online';
+    return user;
+  }
+
+  const baseBunnyId = email.split('@')[0].replace(/[^a-z0-9_]/g, '').slice(0, 24) || `bunny_${Date.now()}`;
+  let bunnyId = baseBunnyId;
+  let suffix = 2;
+  while (db.users.some((candidate: any) => candidate.bunnyId === bunnyId)) {
+    bunnyId = `${baseBunnyId}_${suffix++}`;
+  }
+
+  user = {
+    id: `user_google_${Date.now()}_${randomBytes(3).toString('hex')}`,
+    bunnyId,
+    name: profile.name?.trim() || 'Pinkmess user',
+    email,
+    avatar: profile.picture || '/src/assets/images/bunny_mascot_hero_1791670247958.jpg',
+    bio: 'Đã tham gia Pinkmess bằng Google 💗',
+    status: 'online',
+    statusMessage: 'Đang online trên Pinkmess 🌸',
+    themePreference: 'light-pink',
+    chatWallpaper: 'pattern-bunny',
+    favoriteStickers: [],
+    installedPacks: [],
+    authProvider: 'google',
+    googleSubject: profile.sub,
+    createdAt: new Date().toISOString()
+  };
+  db.users.push(user as any);
+  return user;
+}
+
 async function startServer() {
   const app = express();
   const server = http.createServer(app);
@@ -365,10 +461,61 @@ async function startServer() {
     socketIds.forEach((socketId) => io.to(socketId).emit(event, payload));
   };
 
+  const getConversation = (conversationId: string) =>
+    db.conversations.find((conversation) => conversation.id === conversationId);
+
+  const emitToConversation = (
+    conversationId: string,
+    event: string,
+    payload: any,
+    excludedSocketId?: string
+  ) => {
+    const conversation = getConversation(conversationId);
+    if (!conversation) return;
+    const emittedSocketIds = new Set<string>();
+    conversation.participants.forEach((participantId) => {
+      userToSockets.get(participantId)?.forEach((socketId) => {
+        if (socketId !== excludedSocketId && !emittedSocketIds.has(socketId)) {
+          emittedSocketIds.add(socketId);
+          io.to(socketId).emit(event, payload);
+        }
+      });
+    });
+  };
+
+  const isConversationMember = (conversationId: string, userId: string | undefined) => {
+    const conversation = getConversation(conversationId);
+    return Boolean(userId && conversation?.participants.includes(userId));
+  };
+
+  const detachSocketUser = (socketId: string, announce = true) => {
+    const userId = socketToUser.get(socketId);
+    if (!userId) return;
+    socketToUser.delete(socketId);
+    const sockets = userToSockets.get(userId);
+    sockets?.delete(socketId);
+    if (sockets && sockets.size > 0) return;
+    userToSockets.delete(userId);
+    const user = db.users.find((candidate) => candidate.id === userId);
+    if (user) {
+      user.status = 'away';
+      saveDb();
+      if (announce) {
+        io.emit('presence:update', {
+          userId,
+          status: 'away',
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+  };
+
   io.on('connection', (socket) => {
     console.log(`[Socket] Connected: ${socket.id}`);
 
     socket.on('user:join', (userId: string) => {
+      detachSocketUser(socket.id, false);
+      if (!db.users.some((user) => user.id === userId)) return;
       socketToUser.set(socket.id, userId);
       if (!userToSockets.has(userId)) {
         userToSockets.set(userId, new Set());
@@ -391,6 +538,8 @@ async function startServer() {
       console.log(`[Socket] User joined: ${userId}`);
     });
 
+    socket.on('user:leave', () => detachSocketUser(socket.id));
+
     socket.on('presence:set', ({ userId, status, statusMessage }: any) => {
       const user = db.users.find((u) => u.id === userId);
       if (user) {
@@ -408,12 +557,16 @@ async function startServer() {
 
     // Realtime message
     socket.on('message:send', (messagePayload: any) => {
+      const senderId = socketToUser.get(socket.id);
+      const conversation = getConversation(messagePayload.conversationId);
+      if (!senderId || !conversation?.participants.includes(senderId)) return;
+      const sender = db.users.find((user) => user.id === senderId);
       const newMsg = {
         id: messagePayload.id || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         conversationId: messagePayload.conversationId,
-        senderId: messagePayload.senderId,
-        senderName: messagePayload.senderName,
-        senderAvatar: messagePayload.senderAvatar,
+        senderId,
+        senderName: sender?.name || messagePayload.senderName,
+        senderAvatar: sender?.avatar || messagePayload.senderAvatar,
         type: messagePayload.type || 'TEXT',
         content: messagePayload.content || '',
         stickerId: messagePayload.stickerId,
@@ -427,7 +580,7 @@ async function startServer() {
         replyToId: messagePayload.replyToId,
         replyToMessage: messagePayload.replyToMessage,
         createdAt: new Date().toISOString(),
-        readBy: [messagePayload.senderId]
+        readBy: [senderId]
       };
 
       db.messages.push(newMsg);
@@ -453,14 +606,18 @@ async function startServer() {
       saveDb();
 
       // Broadcast to everyone in conversation
-      io.emit('message:new', newMsg);
-      io.emit('conversation:updated', conv);
+      emitToConversation(newMsg.conversationId, 'message:new', newMsg, socket.id);
+      emitToConversation(newMsg.conversationId, 'conversation:updated', conv, socket.id);
+      socket.emit('message:new', newMsg);
+      socket.emit('conversation:updated', conv);
     });
 
     // Message reactions
     socket.on('message:react', ({ messageId, emoji, userId }: any) => {
       const msg = db.messages.find((m) => m.id === messageId);
       if (!msg) return;
+      const actorId = socketToUser.get(socket.id);
+      if (!actorId || actorId !== userId || !isConversationMember(msg.conversationId, actorId)) return;
 
       if (!msg.reactions) msg.reactions = {};
       const current = msg.reactions[emoji] || [];
@@ -476,7 +633,7 @@ async function startServer() {
       }
 
       saveDb();
-      io.emit('message:reaction-updated', {
+      emitToConversation(msg.conversationId, 'message:reaction-updated', {
         messageId,
         reactions: msg.reactions,
         conversationId: msg.conversationId
@@ -486,66 +643,84 @@ async function startServer() {
     // Message Edit
     socket.on('message:edit', ({ messageId, newContent }: any) => {
       const msg = db.messages.find((m) => m.id === messageId);
-      if (msg) {
+      if (msg && msg.senderId === socketToUser.get(socket.id)) {
         msg.content = newContent;
         msg.isEdited = true;
         saveDb();
-        io.emit('message:updated', msg);
+        emitToConversation(msg.conversationId, 'message:updated', msg);
       }
     });
 
     // Message Delete
     socket.on('message:delete', ({ messageId }: any) => {
       const idx = db.messages.findIndex((m) => m.id === messageId);
-      if (idx !== -1) {
+      if (idx !== -1 && db.messages[idx].senderId === socketToUser.get(socket.id)) {
         const deleted = db.messages[idx];
         db.messages.splice(idx, 1);
         saveDb();
-        io.emit('message:deleted', { messageId, conversationId: deleted.conversationId });
+        emitToConversation(deleted.conversationId, 'message:deleted', { messageId, conversationId: deleted.conversationId });
       }
     });
 
     // Message Pin
     socket.on('message:pin', ({ messageId }: any) => {
       const msg = db.messages.find((m) => m.id === messageId);
-      if (msg) {
+      if (msg && isConversationMember(msg.conversationId, socketToUser.get(socket.id))) {
         msg.isPinned = !msg.isPinned;
         saveDb();
-        io.emit('message:updated', msg);
+        emitToConversation(msg.conversationId, 'message:updated', msg);
       }
     });
 
     // Typing status
     socket.on('typing:start', ({ conversationId, userId, userName }: any) => {
-      socket.broadcast.emit('typing:status', { conversationId, userId, userName, isTyping: true });
+      const actorId = socketToUser.get(socket.id);
+      if (!actorId || actorId !== userId || !isConversationMember(conversationId, actorId)) return;
+      emitToConversation(conversationId, 'typing:status', { conversationId, userId, userName, isTyping: true }, socket.id);
     });
     socket.on('typing:stop', ({ conversationId, userId }: any) => {
-      socket.broadcast.emit('typing:status', { conversationId, userId, isTyping: false });
+      const actorId = socketToUser.get(socket.id);
+      if (!actorId || actorId !== userId || !isConversationMember(conversationId, actorId)) return;
+      emitToConversation(conversationId, 'typing:status', { conversationId, userId, isTyping: false }, socket.id);
     });
 
     // WebRTC Calling Signaling
     socket.on('call:invite', (payload: any) => {
-      const fromUserId = socketToUser.get(socket.id) || payload.fromUser?.id;
+      const fromUserId = socketToUser.get(socket.id);
       const targetUserId = payload.targetUserId;
       if (!fromUserId || !targetUserId || fromUserId === targetUserId) return;
 
       activeCalls.set(payload.callId, { fromUserId, targetUserId });
       console.log(`[Call] Invite from ${fromUserId} to ${targetUserId}`);
-      emitToUser(targetUserId, 'call:incoming', { ...payload, fromUserId });
+      if (!userToSockets.has(targetUserId)) {
+        emitToUser(fromUserId, 'call:unavailable', { callId: payload.callId, targetUserId });
+        activeCalls.delete(payload.callId);
+        return;
+      }
+      const caller = db.users.find((user) => user.id === fromUserId);
+      emitToUser(targetUserId, 'call:incoming', {
+        callId: payload.callId,
+        type: payload.type,
+        fromUser: caller ? toPublicUser(caller) : payload.fromUser,
+        targetUserId,
+        fromUserId
+      });
     });
 
     socket.on('call:accept', (payload: any) => {
       console.log(`[Call] Accepted call ${payload.callId}`);
       const call = activeCalls.get(payload.callId);
-      const acceptedBy = socketToUser.get(socket.id) || payload.acceptedBy;
-      const callerId = call?.fromUserId || payload.targetUserId;
+      const acceptedBy = socketToUser.get(socket.id);
+      if (!call || acceptedBy !== call.targetUserId) return;
+      const callerId = call.fromUserId;
       emitToUser(callerId, 'call:accepted', { ...payload, acceptedBy });
     });
 
     socket.on('call:reject', (payload: any) => {
       console.log(`[Call] Rejected call ${payload.callId}`);
       const call = activeCalls.get(payload.callId);
-      const rejectedBy = socketToUser.get(socket.id) || payload.rejectedBy;
+      const rejectedBy = socketToUser.get(socket.id);
+      if (!call || (rejectedBy !== call.targetUserId && rejectedBy !== call.fromUserId)) return;
       const otherUserId = call && rejectedBy === call.targetUserId ? call.fromUserId : call?.targetUserId;
       emitToUser(otherUserId, 'call:rejected', { ...payload, rejectedBy });
       activeCalls.delete(payload.callId);
@@ -554,7 +729,8 @@ async function startServer() {
     socket.on('call:end', (payload: any) => {
       console.log(`[Call] Ended call ${payload.callId}`);
       const call = activeCalls.get(payload.callId);
-      const endedBy = socketToUser.get(socket.id) || payload.endedBy;
+      const endedBy = socketToUser.get(socket.id);
+      if (!call || (endedBy !== call.targetUserId && endedBy !== call.fromUserId)) return;
       const otherUserId = call && endedBy === call.targetUserId ? call.fromUserId : call?.targetUserId;
       emitToUser(otherUserId, 'call:ended', { ...payload, endedBy });
       activeCalls.delete(payload.callId);
@@ -564,6 +740,16 @@ async function startServer() {
       // Route SDP and ICE only to the intended peer. Broadcasting SDP to every
       // connected user can attach the wrong stream and breaks multi-user calls.
       const fromUserId = socketToUser.get(socket.id) || payload.fromUserId;
+      const activeCall = activeCalls.get(payload.callId);
+      const isCallPeer = Boolean(
+        fromUserId &&
+          activeCall &&
+          ((activeCall.fromUserId === fromUserId && activeCall.targetUserId === payload.targetUserId) ||
+            (activeCall.targetUserId === fromUserId && activeCall.fromUserId === payload.targetUserId))
+      );
+      if (!isCallPeer) {
+        return;
+      }
       emitToUser(payload.targetUserId, 'webrtc:signal', { ...payload, fromUserId });
     });
 
@@ -587,27 +773,7 @@ async function startServer() {
     });
 
     socket.on('disconnect', () => {
-      const userId = socketToUser.get(socket.id);
-      if (userId) {
-        socketToUser.delete(socket.id);
-        const userSockets = userToSockets.get(userId);
-        if (userSockets) {
-          userSockets.delete(socket.id);
-          if (userSockets.size === 0) {
-            userToSockets.delete(userId);
-            const user = db.users.find((u) => u.id === userId);
-            if (user) {
-              user.status = 'away';
-              saveDb();
-              io.emit('presence:update', {
-                userId,
-                status: 'away',
-                timestamp: new Date().toISOString()
-              });
-            }
-          }
-        }
-      }
+      detachSocketUser(socket.id);
       console.log(`[Socket] Disconnected: ${socket.id}`);
     });
   });
@@ -651,12 +817,6 @@ async function startServer() {
 
     db.users.push(newUser as any);
 
-    // Auto-add to group 'conv_group_cute'
-    const defaultGroup = db.conversations.find((c) => c.id === 'conv_group_cute');
-    if (defaultGroup && !defaultGroup.participants.includes(newUser.id)) {
-      defaultGroup.participants.push(newUser.id);
-    }
-
     saveDb();
     io.emit('user:registered', toPublicUser(newUser));
     res.json({ success: true, user: toPublicUser(newUser) });
@@ -697,53 +857,77 @@ async function startServer() {
     res.json({ success: true, user: toPublicUser(user) });
   });
 
-  app.post('/api/auth/google', (req, res) => {
-    const { email, name, avatar } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Thiếu thông tin tài khoản Google!' });
+  app.get('/api/auth/google/start', (req, res) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    if (!clientId || !process.env.GOOGLE_CLIENT_SECRET?.trim()) {
+      return res.status(503).send('Google OAuth chưa được cấu hình trên máy chủ.');
     }
 
-    let user = db.users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-    if (!user) {
-      const baseId = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
-      let candidateId = baseId || `bunny_${Date.now()}`;
-      if (db.users.some((u: any) => u.bunnyId === candidateId)) {
-        candidateId = `${candidateId}_${Math.floor(Math.random() * 900 + 100)}`;
-      }
+    const state = randomBytes(24).toString('hex');
+    googleAuthStates.set(state, Date.now());
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: getGoogleRedirectUri(req),
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'online',
+      prompt: 'select_account',
+      state
+    });
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  });
 
-      user = {
-        id: `user_g_${Date.now()}`,
-        bunnyId: candidateId,
-        name: name || 'Google Bunny',
-        email: email,
-        avatar: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${candidateId}&backgroundColor=ffd6e5`,
-        bio: 'Đăng nhập bảo mật qua Google Account 🌸',
-        status: 'online',
-        statusMessage: 'Xin chào mọi người từ Google! 🐰',
-        themePreference: 'light-pink',
-        chatWallpaper: 'pattern-bunny',
-        favoriteStickers: ['p1_stk_1', 'p_ribbon_1'],
-        installedPacks: ['pack_01', 'pack_ribbon_bunny', 'pack_bunny_emotes', 'pack_anim_01'],
-        createdAt: new Date().toISOString()
-      };
+  app.get('/api/auth/google/callback', async (req, res) => {
+    const { code, state, error } = req.query;
+    if (error) return res.redirect('/?google_error=cancelled');
+    if (typeof code !== 'string' || typeof state !== 'string' || !googleAuthStates.has(state)) {
+      return res.status(400).send('Liên kết Google không hợp lệ hoặc đã hết hạn.');
+    }
 
-      db.users.push(user as any);
+    googleAuthStates.delete(state);
+    try {
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code,
+          client_id: process.env.GOOGLE_CLIENT_ID || '',
+          client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+          redirect_uri: getGoogleRedirectUri(req),
+          grant_type: 'authorization_code'
+        })
+      });
+      if (!tokenResponse.ok) throw new Error('Google token exchange failed');
+      const tokenData = (await tokenResponse.json()) as { access_token?: string };
+      if (!tokenData.access_token) throw new Error('Google không cấp access token.');
 
-      const defaultGroup = db.conversations.find((c) => c.id === 'conv_group_cute');
-      if (defaultGroup && !defaultGroup.participants.includes(user.id)) {
-        defaultGroup.participants.push(user.id);
-      }
-
+      const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+      if (!profileResponse.ok) throw new Error('Không lấy được hồ sơ Google.');
+      const profile = (await profileResponse.json()) as { sub?: string; email?: string; name?: string; picture?: string };
+      const user = createGoogleUser(profile);
+      saveDb();
       io.emit('user:registered', toPublicUser(user));
-    } else {
-      user.status = 'online';
-      if (avatar && !user.avatar.includes('dicebear')) user.avatar = avatar;
-      if (name) user.name = name;
-    }
+      io.emit('presence:update', { userId: user.id, status: 'online', timestamp: new Date().toISOString() });
 
-    saveDb();
-    io.emit('presence:update', { userId: user.id, status: 'online', timestamp: new Date().toISOString() });
-    res.json({ success: true, user: toPublicUser(user) });
+      const sessionCode = randomBytes(32).toString('hex');
+      googleAuthResults.set(sessionCode, { user: toPublicUser(user), createdAt: Date.now() });
+      res.redirect(`/?google_code=${encodeURIComponent(sessionCode)}`);
+    } catch (oauthError) {
+      console.error('[Google OAuth]', oauthError);
+      res.redirect('/?google_error=failed');
+    }
+  });
+
+  app.get('/api/auth/google/session', (req, res) => {
+    const code = String(req.query.code || '');
+    const result = googleAuthResults.get(code);
+    googleAuthResults.delete(code);
+    if (!result || Date.now() - result.createdAt > 120000) {
+      return res.status(401).json({ error: 'Phiên đăng nhập Google đã hết hạn.' });
+    }
+    res.json({ success: true, user: result.user });
   });
 
   // Users
@@ -779,17 +963,34 @@ async function startServer() {
 
   // Conversations
   app.get('/api/conversations', (req, res) => {
-    res.json(db.conversations);
+    const userId = String(req.query.userId || '');
+    if (!db.users.some((user) => user.id === userId)) return res.status(401).json({ error: 'Tài khoản không hợp lệ.' });
+    res.json(db.conversations.filter((conversation) => conversation.participants.includes(userId)));
   });
 
   app.post('/api/conversations', (req, res) => {
-    const { type, name, avatar, participants, wallpaper } = req.body;
+    const { type, name, avatar, participants, wallpaper, userId } = req.body;
+    const requestedParticipants = Array.isArray(participants) ? participants.filter((id: unknown) => typeof id === 'string') : [];
+    if (!userId || !db.users.some((user) => user.id === userId) || !requestedParticipants.includes(userId)) {
+      return res.status(401).json({ error: 'Bạn cần đăng nhập để tạo cuộc trò chuyện.' });
+    }
+    const validParticipants = [...new Set(requestedParticipants)].filter((id) => db.users.some((user) => user.id === id));
+    if (validParticipants.length < 2) return res.status(400).json({ error: 'Hãy chọn ít nhất một người dùng khác.' });
+    if (type === 'direct' && validParticipants.length === 2) {
+      const existing = db.conversations.find(
+        (conversation) =>
+          conversation.type === 'direct' &&
+          conversation.participants.length === 2 &&
+          validParticipants.every((id) => conversation.participants.includes(id))
+      );
+      if (existing) return res.json(existing);
+    }
     const newConv = {
       id: `conv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       type: type || 'direct',
       name: name || 'Trò chuyện mới 🐰',
       avatar: avatar || '/src/assets/images/bunny_mascot_hero_1791670247958.jpg',
-      participants: participants || [],
+      participants: validParticipants,
       isPinned: false,
       isMuted: false,
       wallpaper: wallpaper || 'pattern-bunny',
@@ -798,21 +999,26 @@ async function startServer() {
     };
     db.conversations.unshift(newConv);
     saveDb();
-    io.emit('conversation:new', newConv);
+    emitToConversation(newConv.id, 'conversation:new', newConv);
     res.json(newConv);
   });
 
   app.put('/api/conversations/:id', (req, res) => {
     const conv = db.conversations.find((c) => c.id === req.params.id);
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    const userId = String(req.body.userId || '');
+    if (!conv.participants.includes(userId)) return res.status(403).json({ error: 'Bạn không thuộc cuộc trò chuyện này.' });
+    delete req.body.userId;
     Object.assign(conv, req.body);
     saveDb();
-    io.emit('conversation:updated', conv);
+    emitToConversation(conv.id, 'conversation:updated', conv);
     res.json(conv);
   });
 
   // Messages
   app.get('/api/conversations/:id/messages', (req, res) => {
+    const userId = String(req.query.userId || '');
+    if (!isConversationMember(req.params.id, userId)) return res.status(403).json({ error: 'Bạn không thuộc cuộc trò chuyện này.' });
     const msgs = db.messages.filter((m) => m.conversationId === req.params.id);
     res.json(msgs);
   });
@@ -868,13 +1074,12 @@ async function startServer() {
 
   // Reset database endpoint if needed
   app.post('/api/admin/reset-demo', (req, res) => {
-    db.users = initialUsers;
-    db.conversations = initialConversations;
-    db.messages = initialMessages as ServerMessage[];
+    db.conversations = [];
+    db.messages = [];
     db.customPacks = [];
     saveDb();
     io.emit('system:reset');
-    res.json({ success: true, message: 'Database reset to default demo state.' });
+    res.json({ success: true, message: 'Đã xoá dữ liệu trò chuyện mẫu.' });
   });
 
   // Health check

@@ -44,6 +44,11 @@ const collections = [
     manifestUrl: '/stickers/pinkmess-funny/manifest.json',
     assetRoot: '/stickers/pinkmess-funny',
     author: 'Pinkmess Original'
+  },
+  {
+    manifestUrl: '/stickers/pinkmess-github/manifest.json',
+    assetRoot: '/stickers/pinkmess-github',
+    author: 'GitHub Open Assets'
   }
 ] as const;
 

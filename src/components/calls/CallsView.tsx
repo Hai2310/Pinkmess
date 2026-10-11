@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, Sparkles } from 'lucide-react';
+import { Phone, Video } from 'lucide-react';
 import { User } from '../../types';
 
 interface CallsViewProps {
@@ -10,36 +10,6 @@ interface CallsViewProps {
 
 export const CallsView: React.FC<CallsViewProps> = ({ users, currentUser, onStartCall }) => {
   const otherUsers = users.filter((u) => u.id !== currentUser.id);
-
-  const sampleCallHistory = [
-    {
-      id: 'call_1',
-      user: otherUsers[0] || currentUser,
-      type: 'video',
-      direction: 'incoming',
-      timestamp: 'Hôm nay, 14:20',
-      duration: '12:45',
-      status: 'completed'
-    },
-    {
-      id: 'call_2',
-      user: otherUsers[1] || currentUser,
-      type: 'audio',
-      direction: 'outgoing',
-      timestamp: 'Hôm nay, 10:15',
-      duration: '05:30',
-      status: 'completed'
-    },
-    {
-      id: 'call_3',
-      user: otherUsers[2] || currentUser,
-      type: 'video',
-      direction: 'incoming',
-      timestamp: 'Hôm qua, 21:05',
-      duration: '00:00',
-      status: 'missed'
-    }
-  ];
 
   return (
     <div className="flex-1 bg-[#FFFDFB] flex flex-col h-full overflow-y-auto select-none">
@@ -96,38 +66,10 @@ export const CallsView: React.FC<CallsViewProps> = ({ users, currentUser, onStar
         {/* Call History */}
         <div>
           <h3 className="font-bold text-sm text-[#4C3441] mb-3">Lịch sử cuộc gọi gần đây:</h3>
-          <div className="bg-white rounded-3xl border border-[#F7DDE8] divide-y divide-[#F7DDE8]/80 shadow-xs overflow-hidden">
-            {sampleCallHistory.map((h) => (
-              <div key={h.id} className="p-4 flex items-center justify-between hover:bg-[#FFF0F6]/40 transition-colors">
-                <div className="flex items-center gap-3">
-                  <img src={h.user.avatar} alt={h.user.name} className="w-11 h-11 rounded-2xl object-cover border border-[#FFD6E5]" />
-                  <div>
-                    <div className="text-xs font-bold text-[#4C3441]">{h.user.name}</div>
-                    <div className="text-[11px] text-[#927D8A] flex items-center gap-1.5 mt-0.5">
-                      {h.status === 'missed' ? (
-                        <PhoneMissed className="w-3.5 h-3.5 text-rose-500" />
-                      ) : h.direction === 'incoming' ? (
-                        <PhoneIncoming className="w-3.5 h-3.5 text-emerald-500" />
-                      ) : (
-                        <PhoneOutgoing className="w-3.5 h-3.5 text-[#FF82AE]" />
-                      )}
-                      <span>{h.status === 'missed' ? 'Cuộc gọi nhỡ' : `${h.type === 'video' ? 'Video' : 'Thoại'} (${h.duration})`}</span>
-                      <span>·</span>
-                      <span>{h.timestamp}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => onStartCall(h.user, h.type as any)}
-                    className="px-3 py-1.5 rounded-xl bg-[#FFF0F6] hover:bg-[#FFE4F0] text-[#FF4F8B] text-xs font-bold flex items-center gap-1"
-                  >
-                    {h.type === 'video' ? <Video className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />} Gọi lại
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="bg-white rounded-3xl border border-[#F7DDE8] shadow-xs overflow-hidden p-8 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FFF0F6] text-2xl">📞</div>
+            <p className="text-sm font-semibold text-[#4C3441]">Chưa có lịch sử cuộc gọi</p>
+            <p className="mt-1 text-xs text-[#927D8A]">Các cuộc gọi thật của bạn sẽ xuất hiện ở đây.</p>
           </div>
         </div>
       </div>

@@ -23,7 +23,7 @@ export default function App() {
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return Boolean(localStorage.getItem('hustmess_logged_in'));
+    return localStorage.getItem('pinkmess_logged_in') === 'true';
   });
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -52,35 +52,71 @@ export default function App() {
 
   const typingTimeoutRef = useRef<number | null>(null);
 
+  const loadUserConversations = useCallback(async (userId: string) => {
+    const response = await fetch(`/api/conversations?userId=${encodeURIComponent(userId)}`);
+    const data = response.ok ? await response.json() : [];
+    setConversations(Array.isArray(data) ? data : []);
+    setActiveConversationId((currentId) => {
+      if (currentId && Array.isArray(data) && data.some((conversation: Conversation) => conversation.id === currentId)) {
+        return currentId;
+      }
+      return data[0]?.id || null;
+    });
+    if (!Array.isArray(data) || data.length === 0) setMessages([]);
+  }, []);
+
   // 1. Initial Data Fetch
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [usersRes, convsRes, customPacksRes] = await Promise.all([
-          fetch('/api/users'),
-          fetch('/api/conversations'),
-          fetch('/api/stickers/custom')
-        ]);
+        const [usersRes, customPacksRes] = await Promise.all([fetch('/api/users'), fetch('/api/stickers/custom')]);
 
         if (usersRes.ok) {
           const usersData = await usersRes.json();
           setUsers(usersData);
-          const savedUserId = localStorage.getItem('hustmess_user_id');
-          const matched = usersData.find((u: any) => u.id === savedUserId);
-          if (matched) {
-            setCurrentUser(matched);
-            setIsLoggedIn(true);
-          } else if (usersData.length > 0 && localStorage.getItem('hustmess_logged_in')) {
-            setCurrentUser(usersData[0]);
-            setIsLoggedIn(true);
-          }
-        }
+          const googleCode = new URLSearchParams(window.location.search).get('google_code');
+          const googleError = new URLSearchParams(window.location.search).get('google_error');
+          let authenticatedUser: User | null = null;
 
-        if (convsRes.ok) {
-          const convsData = await convsRes.json();
-          setConversations(convsData);
-          if (convsData.length > 0 && !activeConversationId) {
-            setActiveConversationId(convsData[0].id);
+          if (googleCode) {
+            const googleSession = await fetch(`/api/auth/google/session?code=${encodeURIComponent(googleCode)}`);
+            if (googleSession.ok) {
+              const sessionData = await googleSession.json();
+              authenticatedUser = sessionData.user || null;
+            }
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+
+          if (!authenticatedUser) {
+            const savedUserId = localStorage.getItem('pinkmess_user_id') || localStorage.getItem('hustmess_user_id');
+            const matched = usersData.find((u: User) => u.id === savedUserId);
+            if (
+              matched &&
+              (localStorage.getItem('pinkmess_logged_in') === 'true' ||
+                localStorage.getItem('hustmess_logged_in') === 'true')
+            ) {
+              authenticatedUser = matched;
+            }
+          }
+
+          if (authenticatedUser) {
+            setCurrentUser(authenticatedUser);
+            setIsLoggedIn(true);
+            localStorage.setItem('pinkmess_logged_in', 'true');
+            localStorage.setItem('pinkmess_user_id', authenticatedUser.id);
+            localStorage.removeItem('hustmess_logged_in');
+            localStorage.removeItem('hustmess_user_id');
+            await loadUserConversations(authenticatedUser.id);
+          } else {
+            localStorage.removeItem('pinkmess_logged_in');
+            localStorage.removeItem('pinkmess_user_id');
+            localStorage.removeItem('hustmess_logged_in');
+            localStorage.removeItem('hustmess_user_id');
+            setCurrentUser(null);
+            setIsLoggedIn(false);
+            setConversations([]);
+            setActiveConversationId(null);
+            if (googleError) console.warn('Google OAuth failed:', googleError);
           }
         }
 
@@ -103,17 +139,19 @@ export default function App() {
     };
 
     fetchInitialData();
-  }, []);
+  }, [loadUserConversations]);
 
   // 2. Fetch Messages when active conversation changes
   useEffect(() => {
     if (!activeConversationId) return;
 
-    fetch(`/api/conversations/${activeConversationId}/messages`)
+    if (!currentUser) return;
+
+    fetch(`/api/conversations/${activeConversationId}/messages?userId=${encodeURIComponent(currentUser.id)}`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setMessages(data))
       .catch((err) => console.error('Error fetching messages:', err));
-  }, [activeConversationId]);
+  }, [activeConversationId, currentUser]);
 
   // 3. Socket.IO Listeners
   useEffect(() => {
@@ -122,6 +160,10 @@ export default function App() {
     if (currentUser) {
       socket.emit('user:join', currentUser.id);
     }
+
+    const handleSocketConnect = () => {
+      if (currentUser) socket.emit('user:join', currentUser.id);
+    };
 
     // New incoming message
     const handleNewMessage = (newMsg: Message) => {
@@ -161,6 +203,19 @@ export default function App() {
             : c
         )
       );
+    };
+
+    const handleConversationNew = (conversation: Conversation) => {
+      if (!currentUser || !conversation.participants.includes(currentUser.id)) return;
+      setConversations((prev) => (prev.some((item) => item.id === conversation.id) ? prev : [conversation, ...prev]));
+    };
+
+    const handleConversationUpdated = (conversation: Conversation) => {
+      if (!currentUser || !conversation.participants.includes(currentUser.id)) return;
+      setConversations((prev) => {
+        if (!prev.some((item) => item.id === conversation.id)) return [conversation, ...prev];
+        return prev.map((item) => (item.id === conversation.id ? conversation : item));
+      });
     };
 
     // Reaction update
@@ -240,7 +295,15 @@ export default function App() {
       setCallState((prev) => ({ ...prev, active: false }));
     };
 
+    const handleCallUnavailable = () => {
+      setCallState((prev) => ({ ...prev, active: false }));
+      window.alert('Người này đang ngoại tuyến, bạn hãy thử lại khi họ online nhé.');
+    };
+
     socket.on('message:new', handleNewMessage);
+    socket.on('connect', handleSocketConnect);
+    socket.on('conversation:new', handleConversationNew);
+    socket.on('conversation:updated', handleConversationUpdated);
     socket.on('message:reaction-updated', handleReactionUpdated);
     socket.on('message:updated', handleMessageUpdated);
     socket.on('message:deleted', handleMessageDeleted);
@@ -250,9 +313,13 @@ export default function App() {
     socket.on('call:accepted', handleCallAccepted);
     socket.on('call:rejected', handleCallRejected);
     socket.on('call:ended', handleCallEnded);
+    socket.on('call:unavailable', handleCallUnavailable);
 
     return () => {
       socket.off('message:new', handleNewMessage);
+      socket.off('connect', handleSocketConnect);
+      socket.off('conversation:new', handleConversationNew);
+      socket.off('conversation:updated', handleConversationUpdated);
       socket.off('message:reaction-updated', handleReactionUpdated);
       socket.off('message:updated', handleMessageUpdated);
       socket.off('message:deleted', handleMessageDeleted);
@@ -262,25 +329,22 @@ export default function App() {
       socket.off('call:accepted', handleCallAccepted);
       socket.off('call:rejected', handleCallRejected);
       socket.off('call:ended', handleCallEnded);
+      socket.off('call:unavailable', handleCallUnavailable);
     };
   }, [activeConversationId, currentUser, callState.callId]);
-
-  // Switch Active User (for testing multi-user interactions)
-  const handleSwitchUser = (userId: string) => {
-    const target = users.find((u) => u.id === userId);
-    if (!target) return;
-    setCurrentUser(target);
-    localStorage.setItem('hustmess_user_id', target.id);
-    const socket = getSocket();
-    socket.emit('user:join', target.id);
-  };
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
     setIsLoggedIn(true);
-    localStorage.setItem('hustmess_logged_in', 'true');
-    localStorage.setItem('hustmess_user_id', user.id);
+    localStorage.setItem('pinkmess_logged_in', 'true');
+    localStorage.setItem('pinkmess_user_id', user.id);
+    localStorage.removeItem('hustmess_logged_in');
+    localStorage.removeItem('hustmess_user_id');
     setUsers((prev) => (prev.some((u) => u.id === user.id) ? prev : [...prev, user]));
+    setConversations([]);
+    setActiveConversationId(null);
+    setMessages([]);
+    void loadUserConversations(user.id);
     const socket = getSocket();
     socket.emit('user:join', user.id);
   };
@@ -289,8 +353,14 @@ export default function App() {
     setIsLoggedIn(false);
     setCurrentUser(null);
     setIsMobileChatOpen(false);
+    setConversations([]);
+    setActiveConversationId(null);
+    setMessages([]);
+    localStorage.removeItem('pinkmess_logged_in');
+    localStorage.removeItem('pinkmess_user_id');
     localStorage.removeItem('hustmess_logged_in');
     localStorage.removeItem('hustmess_user_id');
+    getSocket().emit('user:leave');
   };
 
   // Update Status
@@ -375,14 +445,10 @@ export default function App() {
     if (!target) {
       const activeConv = conversations.find((c) => c.id === activeConversationId);
       const otherId = activeConv?.participants.find((p) => p !== currentUser.id);
-      target = users.find((u) => u.id === otherId) || users.find((u) => u.id !== currentUser.id);
+      target = users.find((u) => u.id === otherId);
     }
 
-    if (!target || target.id === currentUser.id) {
-      target = users.find((u) => u.id !== currentUser.id) || users[0];
-    }
-
-    if (!target) return;
+    if (!target || target.id === currentUser.id) return;
 
     const callId = `call_${Date.now()}`;
     setCallState({
@@ -457,7 +523,8 @@ export default function App() {
         type: 'direct',
         name: targetUser.name,
         avatar: targetUser.avatar,
-        participants: [currentUser.id, targetUser.id]
+        participants: [currentUser.id, targetUser.id],
+        userId: currentUser.id
       })
     });
 
@@ -485,7 +552,8 @@ export default function App() {
           type === 'group'
             ? '/src/assets/images/bunny_mascot_hero_1791670247958.jpg'
             : users.find((u) => u.id === participants.find((p) => p !== currentUser?.id))?.avatar,
-        participants
+        participants,
+        userId: currentUser?.id
       })
     });
     if (res.ok) {
@@ -505,7 +573,7 @@ export default function App() {
     await fetch(`/api/conversations/${activeConversationId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ wallpaper })
+      body: JSON.stringify({ wallpaper, userId: currentUser?.id })
     });
   };
 
@@ -580,8 +648,6 @@ export default function App() {
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
         currentUser={currentUser}
-        allUsers={users}
-        onSwitchUser={handleSwitchUser}
         onOpenSettings={() => setShowSettingsModal(true)}
         onUpdateStatus={handleUpdateStatus}
         onLogout={handleLogout}

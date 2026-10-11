@@ -8,7 +8,6 @@ import {
   Bell,
   Settings,
   Circle,
-  UserCheck,
   ChevronUp,
   LogOut
 } from 'lucide-react';
@@ -18,8 +17,6 @@ interface LeftSidebarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
   currentUser: User;
-  allUsers: User[];
-  onSwitchUser: (userId: string) => void;
   onOpenSettings: () => void;
   onUpdateStatus: (status: UserStatus) => void;
   onLogout: () => void;
@@ -29,8 +26,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   currentTab,
   onSelectTab,
   currentUser,
-  allUsers,
-  onSwitchUser,
   onOpenSettings,
   onUpdateStatus,
   onLogout
@@ -140,35 +135,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {showUserMenu && (
           <div className="absolute bottom-full left-2 right-2 mb-2 bg-white rounded-2xl p-2.5 shadow-xl border border-[#F7DDE8] z-50 text-xs">
             <div className="px-2 py-1 text-[11px] font-bold text-[#927D8A] uppercase tracking-wider">
-              Đổi tài khoản test:
+              Tài khoản của bạn
             </div>
-            <div className="space-y-1 my-1">
-              {allUsers.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => {
-                    onSwitchUser(u.id);
-                    setShowUserMenu(false);
-                  }}
-                  className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left transition-colors ${
-                    u.id === currentUser.id
-                      ? 'bg-[#FFE4F0] text-[#FF4F8B] font-semibold'
-                      : 'hover:bg-[#FFF0F6] text-[#4C3441]'
-                  }`}
-                >
-                  <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover border border-[#FFD6E5]" />
-                  <div className="truncate flex-1">
-                    <div className="truncate flex items-center gap-1">
-                      <span>{u.name}</span>
-                      <span className="text-[9px] text-[#FF4F8B] font-mono">@{u.bunnyId || u.id}</span>
-                    </div>
-                    <div className="text-[10px] text-[#927D8A]">{u.email}</div>
-                  </div>
-                  {u.id === currentUser.id && <UserCheck className="w-4 h-4 text-[#FF4F8B] shrink-0" />}
-                </button>
-              ))}
+            <div className="px-2 py-1.5 text-[11px] text-[#927D8A] leading-relaxed">
+              Mỗi tài khoản có danh sách trò chuyện riêng. Hãy đăng xuất để đăng nhập tài khoản khác.
             </div>
-
             <div className="border-t border-[#F7DDE8] pt-1.5 mt-1 space-y-0.5">
               <div className="px-2 py-1 text-[10px] font-bold text-[#927D8A]">Trạng thái hoạt động:</div>
               {(['online', 'busy', 'away'] as UserStatus[]).map((st) => (

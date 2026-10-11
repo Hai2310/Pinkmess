@@ -112,7 +112,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   // Get other user in direct conversation
   const otherUserId = conversation.participants.find((p) => p !== currentUser.id);
   const otherUser = allUsers.find((u) => u.id === otherUserId);
-  const targetCallUser = otherUser || allUsers.find((u) => u.id !== currentUser.id) || allUsers[0];
+  const targetCallUser = otherUser;
   const isOnline = otherUser?.status === 'online';
 
   const pinnedMessages = messages.filter((m) => m.isPinned);

@@ -69,7 +69,7 @@ export const StickerStore: React.FC<StickerStoreProps> = ({
             Thế giới Sticker 🐰💕
           </h1>
           <p className="text-sm md:text-base text-[#927D8A] font-medium max-w-xl">
-            Một chút đáng yêu cho mọi cuộc trò chuyện! Đầy đủ {packs.length} bộ với {totalStickerCount} sticker từ hai kho ZIP của bạn.
+            Một chút đáng yêu cho mọi cuộc trò chuyện! Đầy đủ {packs.length} bộ với {totalStickerCount} sticker trong kho Pinkmess.
           </p>
 
           {/* Action Row */}
@@ -105,12 +105,12 @@ export const StickerStore: React.FC<StickerStoreProps> = ({
       </div>
 
       {/* Category Pills Bar */}
-      <div className="px-6 py-3.5 border-b border-[#F7DDE8] bg-[#FFFDFB]/80 backdrop-blur-md sticky top-0 z-20 flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div className="px-4 sm:px-6 py-3.5 border-b border-[#F7DDE8] bg-[#FFFDFB]/85 backdrop-blur-md sticky top-0 z-20 flex items-center gap-3 overflow-x-auto overscroll-x-contain no-scrollbar snap-x snap-mandatory">
         {categories.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setSelectedCategory(cat.id)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+            className={`shrink-0 snap-start px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
               selectedCategory === cat.id
                 ? 'bg-[#FF82AE] text-white font-bold shadow-xs'
                 : 'bg-[#FFF0F6] text-[#927D8A] hover:bg-[#FFE4F0] hover:text-[#4C3441]'

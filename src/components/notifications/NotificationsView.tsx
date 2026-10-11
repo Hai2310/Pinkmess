@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Heart, Sparkles, MessageCircle, PhoneIncoming, Check } from 'lucide-react';
+import { Heart, Sparkles } from 'lucide-react';
 
 interface NotificationsViewProps {
   onOpenStickerStore: () => void;
@@ -12,20 +12,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
 }) => {
   const notifs = [
     {
-      id: 'n_1',
-      title: 'Khánh Linh gửi cho bạn 1 sticker mới!',
-      desc: '"Bunny Motion — Nhảy tưng tưng vui sướng 🐰"',
-      time: '10 phút trước',
-      icon: Sparkles,
-      iconBg: 'bg-[#FFE4F0] text-[#FF4F8B]',
-      action: onOpenMessages,
-      actionText: 'Xem tin nhắn'
-    },
-    {
       id: 'n_2',
-      title: 'Gói sticker mới đã cập bến!',
-      desc: 'Bộ "Bunny Magic (Phép Thuật)" với 8 animation lấp lánh vừa ra mắt.',
-      time: '1 giờ trước',
+      title: 'Kho sticker Pinkmess đã sẵn sàng!',
+      desc: 'Khám phá các bộ sticker cute, hài hước và GIF động mới nhất.',
+      time: 'Mới cập nhật',
       icon: Heart,
       iconBg: 'bg-[#FFF0F6] text-[#FF82AE]',
       action: onOpenStickerStore,
@@ -33,13 +23,13 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     },
     {
       id: 'n_3',
-      title: 'Lời mời họp nhóm phòng chat:',
-      desc: 'Minh Hoa mời bạn tham gia video call nhóm "Hội Thỏ Bông & Bạn Bè 🌸"',
-      time: 'Hôm nay, 13:45',
-      icon: PhoneIncoming,
-      iconBg: 'bg-emerald-50 text-emerald-600',
+      title: 'Tin nhắn realtime đã bật',
+      desc: 'Mở một cuộc trò chuyện để nhắn tin, gửi ảnh và gọi trực tiếp với bạn bè online.',
+      time: 'Pinkmess realtime',
+      icon: Sparkles,
+      iconBg: 'bg-[#FFE4F0] text-[#FF4F8B]',
       action: onOpenMessages,
-      actionText: 'Vào phòng'
+      actionText: 'Mở tin nhắn'
     }
   ];
 
