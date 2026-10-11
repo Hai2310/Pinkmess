@@ -1,0 +1,74 @@
+{
+  "collectionId": "pinkmess-funny",
+  "name": "Pinkmess Funny Originals",
+  "description": "Sticker nguyên bản do Pinkmess tạo cho những màn phản ứng hài hước, bựa và đáng yêu.",
+  "assetBasePath": "/stickers/pinkmess-funny",
+  "packs": [
+    {
+      "id": "cat-chaos",
+      "name": "Cat Chaos",
+      "displayName": "Mèo Hết Cứu",
+      "category": "Funny & Meme",
+      "cover": "packs/cat-chaos/cover.png",
+      "count": 12,
+      "stickers": [
+        { "id": "cat-chaos-01", "name": "Hoảng hồn", "file": "packs/cat-chaos/01.png", "keywords": ["sốc", "hoảng", "what"] },
+        { "id": "cat-chaos-02", "name": "Nằm im phán xét", "file": "packs/cat-chaos/02.png", "keywords": ["phán xét", "deadpan", "lười"] },
+        { "id": "cat-chaos-03", "name": "Tự tin quá mức", "file": "packs/cat-chaos/03.png", "keywords": ["ngầu", "tự tin", "sung"] },
+        { "id": "cat-chaos-04", "name": "Cười xỉu", "file": "packs/cat-chaos/04.png", "keywords": ["cười", "haha", "lăn"] },
+        { "id": "cat-chaos-05", "name": "Ngủ đây", "file": "packs/cat-chaos/05.png", "keywords": ["ngủ", "mệt", "buồn ngủ"] },
+        { "id": "cat-chaos-06", "name": "Bực rồi nha", "file": "packs/cat-chaos/06.png", "keywords": ["giận", "bực", "rage"] },
+        { "id": "cat-chaos-07", "name": "Ủa gì vậy", "file": "packs/cat-chaos/07.png", "keywords": ["khó hiểu", "hỏi", "hả"] },
+        { "id": "cat-chaos-08", "name": "Nhìn gì", "file": "packs/cat-chaos/08.png", "keywords": ["side eye", "nhìn", "sus"] },
+        { "id": "cat-chaos-09", "name": "Khóc thật rồi", "file": "packs/cat-chaos/09.png", "keywords": ["khóc", "buồn", "cry"] },
+        { "id": "cat-chaos-10", "name": "Ăn trước đã", "file": "packs/cat-chaos/10.png", "keywords": ["ăn", "đói", "gà"] },
+        { "id": "cat-chaos-11", "name": "Không thấy gì hết", "file": "packs/cat-chaos/11.png", "keywords": ["che mặt", "ngại", "facepalm"] },
+        { "id": "cat-chaos-12", "name": "Yeahhh", "file": "packs/cat-chaos/12.png", "keywords": ["vui", "chiến thắng", "yay"] }
+      ]
+    },
+    {
+      "id": "animal-chaos",
+      "name": "Animal Chaos",
+      "displayName": "Muôn Loài Tấu Hài",
+      "category": "Funny & Meme",
+      "cover": "packs/animal-chaos/cover.png",
+      "count": 12,
+      "stickers": [
+        { "id": "animal-chaos-01", "name": "Tin nhắn khẩn", "file": "packs/animal-chaos/01.png", "keywords": ["điện thoại", "gấp", "panic"] },
+        { "id": "animal-chaos-02", "name": "Deadline dí", "file": "packs/animal-chaos/02.png", "keywords": ["deadline", "làm việc", "bận"] },
+        { "id": "animal-chaos-03", "name": "Quá ngầu", "file": "packs/animal-chaos/03.png", "keywords": ["ngầu", "ok", "thumbs up"] },
+        { "id": "animal-chaos-04", "name": "Tan chảy vì ngại", "file": "packs/animal-chaos/04.png", "keywords": ["ngại", "xấu hổ", "melt"] },
+        { "id": "animal-chaos-05", "name": "Nằm ăn vạ", "file": "packs/animal-chaos/05.png", "keywords": ["nằm", "mệt", "bất lực"] },
+        { "id": "animal-chaos-06", "name": "Ăn vụng bị bắt", "file": "packs/animal-chaos/06.png", "keywords": ["ăn", "bánh", "tham ăn"] },
+        { "id": "animal-chaos-07", "name": "Ngủ bất tỉnh", "file": "packs/animal-chaos/07.png", "keywords": ["ngủ", "ngủ gật", "zzz"] },
+        { "id": "animal-chaos-08", "name": "Chim nhưng có thái độ", "file": "packs/animal-chaos/08.png", "keywords": ["chim", "thái độ", "lạnh lùng"] },
+        { "id": "animal-chaos-09", "name": "Bực như con cá mực", "file": "packs/animal-chaos/09.png", "keywords": ["giận", "gào", "bực"] },
+        { "id": "animal-chaos-10", "name": "Hả?", "file": "packs/animal-chaos/10.png", "keywords": ["hả", "không hiểu", "question"] },
+        { "id": "animal-chaos-11", "name": "Giàu rồi", "file": "packs/animal-chaos/11.png", "keywords": ["tiền", "giàu", "money"] },
+        { "id": "animal-chaos-12", "name": "Quẩy lên", "file": "packs/animal-chaos/12.png", "keywords": ["nhảy", "quẩy", "party"] }
+      ]
+    },
+    {
+      "id": "bunny-cat-reactions",
+      "name": "Bunny Cat Reactions",
+      "displayName": "Thỏ Mèo Phản Ứng",
+      "category": "Funny & Meme",
+      "cover": "packs/bunny-cat-reactions/cover.png",
+      "count": 12,
+      "stickers": [
+        { "id": "bunny-cat-reactions-01", "name": "Mê quá trời", "file": "packs/bunny-cat-reactions/01.png", "keywords": ["yêu", "mê", "heart eyes"] },
+        { "id": "bunny-cat-reactions-02", "name": "Khóc to lên", "file": "packs/bunny-cat-reactions/02.png", "keywords": ["khóc", "buồn", "nước mắt"] },
+        { "id": "bunny-cat-reactions-03", "name": "Hai đứa phán xét", "file": "packs/bunny-cat-reactions/03.png", "keywords": ["phán xét", "nhìn", "judge"] },
+        { "id": "bunny-cat-reactions-04", "name": "Tội nghiệp chưa", "file": "packs/bunny-cat-reactions/04.png", "keywords": ["thương", "buồn", "cute"] },
+        { "id": "bunny-cat-reactions-05", "name": "Chạy thôi", "file": "packs/bunny-cat-reactions/05.png", "keywords": ["chạy", "hoảng", "đi"] },
+        { "id": "bunny-cat-reactions-06", "name": "Ôm ngủ", "file": "packs/bunny-cat-reactions/06.png", "keywords": ["ngủ", "ôm", "mệt"] },
+        { "id": "bunny-cat-reactions-07", "name": "Đồng bọn chiến thắng", "file": "packs/bunny-cat-reactions/07.png", "keywords": ["vui", "bạn", "yay"] },
+        { "id": "bunny-cat-reactions-08", "name": "Thả tim", "file": "packs/bunny-cat-reactions/08.png", "keywords": ["tim", "yêu", "cảm ơn"] },
+        { "id": "bunny-cat-reactions-09", "name": "Chắp tay cầu cứu", "file": "packs/bunny-cat-reactions/09.png", "keywords": ["xin", "cầu", "please"] },
+        { "id": "bunny-cat-reactions-10", "name": "Nấp trong thùng", "file": "packs/bunny-cat-reactions/10.png", "keywords": ["trốn", "thùng", "ẩn"] },
+        { "id": "bunny-cat-reactions-11", "name": "Quay cuồng", "file": "packs/bunny-cat-reactions/11.png", "keywords": ["chóng mặt", "quay", "dizzy"] },
+        { "id": "bunny-cat-reactions-12", "name": "Không biết gì", "file": "packs/bunny-cat-reactions/12.png", "keywords": ["không biết", "bối rối", "confused"] }
+      ]
+    }
+  ]
+}
