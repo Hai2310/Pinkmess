@@ -306,6 +306,7 @@ interface ServerConversation {
   isPinned?: boolean;
   isMuted?: boolean;
   wallpaper?: string;
+  wallpapers?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
   lastMessage?: {
@@ -565,7 +566,10 @@ async function startServer() {
     return {
       ...conversation,
       name: otherUser?.name || conversation.name,
-      avatar: otherUser?.avatar || conversation.avatar
+      avatar: otherUser?.avatar || conversation.avatar,
+      wallpaper: viewerId && conversation.wallpapers?.[viewerId]
+        ? conversation.wallpapers[viewerId]
+        : conversation.wallpaper
     };
   };
 
@@ -1494,8 +1498,11 @@ async function startServer() {
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
     const userId = String(req.body.userId || '');
     if (!conv.participants.includes(userId)) return res.status(403).json({ error: 'Bạn không thuộc cuộc trò chuyện này.' });
-    delete req.body.userId;
-    Object.assign(conv, req.body);
+    const { wallpaper, userId: _userId, ...updates } = req.body || {};
+    if (typeof wallpaper === 'string') {
+      conv.wallpapers = { ...(conv.wallpapers || {}), [userId]: wallpaper.slice(0, 5500000) };
+    }
+    Object.assign(conv, updates);
     saveDb();
     emitToConversation(conv.id, 'conversation:updated', conv);
     res.json(toPublicConversation(conv, userId));
