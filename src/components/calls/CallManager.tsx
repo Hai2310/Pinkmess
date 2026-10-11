@@ -63,7 +63,8 @@ export const CallManager: React.FC<CallManagerProps> = ({
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
-  const mediaRequestRef = useRef<Promise<MediaStream> | null>(null);
+  const mediaRequestRef = useRef<Promise<MediaStream | null> | null>(null);
+  const mediaUnavailableForCallRef = useRef<string | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const offerSentForCallRef = useRef<string | null>(null);
   const iceServersRef = useRef<RTCIceServer[] | null>(null);
@@ -92,6 +93,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
     offerSentForCallRef.current = null;
     iceServersRef.current = null;
     iceServersRequestRef.current = null;
+    mediaUnavailableForCallRef.current = null;
     setLocalStream(null);
     setRemoteStream(null);
     setConnectionStatus('idle');
@@ -202,14 +204,17 @@ export const CallManager: React.FC<CallManagerProps> = ({
     return peerConnection;
   };
 
-  const getLocalMedia = async (): Promise<MediaStream> => {
+  const getLocalMedia = async (): Promise<MediaStream | null> => {
     if (localStreamRef.current) return localStreamRef.current;
     if (mediaRequestRef.current) return mediaRequestRef.current;
     if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('Thiết bị không cho phép truy cập micro/camera.');
+      mediaUnavailableForCallRef.current = callStateRef.current.callId;
+      setMediaError('Trình duyệt chưa cấp MediaDevices. Hãy mở Pinkmess bằng HTTPS trên Safari hoặc Chrome.');
+      return null;
     }
 
     const activeCall = callStateRef.current;
+    if (mediaUnavailableForCallRef.current === activeCall.callId) return null;
     const audioConstraints: MediaTrackConstraints = {
       echoCancellation: true,
       noiseSuppression: true,
@@ -225,45 +230,56 @@ export const CallManager: React.FC<CallManagerProps> = ({
 
     const expectedCallId = activeCall.callId;
     const request = (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: audioConstraints,
-          video: activeCall.type === 'video' ? videoConstraints : false
-        });
-        if (!callStateRef.current.active || callStateRef.current.callId !== expectedCallId) {
-          stream.getTracks().forEach((track) => track.stop());
-          throw new Error('Cuộc gọi đã kết thúc.');
-        }
-        localStreamRef.current = stream;
-        setLocalStream(stream);
-        return stream;
-      } catch (error) {
-        // If only the camera is unavailable, keep the call usable as audio-only.
-        if (activeCall.type === 'video') {
-          try {
-            const audioOnlyStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
-            if (!callStateRef.current.active || callStateRef.current.callId !== expectedCallId) {
-              audioOnlyStream.getTracks().forEach((track) => track.stop());
-              throw new Error('Cuộc gọi đã kết thúc.');
-            }
-            localStreamRef.current = audioOnlyStream;
-            setLocalStream(audioOnlyStream);
-            setMediaError('Không mở được camera; cuộc gọi vẫn tiếp tục bằng micro.');
-            return audioOnlyStream;
-          } catch {
-            try {
-              const compatibilityStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-              localStreamRef.current = compatibilityStream;
-              setLocalStream(compatibilityStream);
-              setMediaError('Thiết bị không nhận tuỳ chọn âm thanh nâng cao; Pinkmess đã dùng chế độ tương thích.');
-              return compatibilityStream;
-            } catch {
-              // Fall through to the actionable permission message below.
-            }
+      const requests: MediaStreamConstraints[] =
+        activeCall.type === 'video'
+          ? [
+              { audio: audioConstraints, video: videoConstraints },
+              { audio: true, video: { facingMode: 'user' } },
+              { audio: audioConstraints, video: false },
+              { audio: true, video: false },
+              { audio: false, video: true }
+            ]
+          : [{ audio: audioConstraints, video: false }, { audio: true, video: false }];
+
+      let lastError: unknown = null;
+      for (const constraints of requests) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          if (!callStateRef.current.active || callStateRef.current.callId !== expectedCallId) {
+            stream.getTracks().forEach((track) => track.stop());
+            throw new Error('Cuộc gọi đã kết thúc.');
           }
+
+          const hasAudio = stream.getAudioTracks().length > 0;
+          const hasVideo = stream.getVideoTracks().length > 0;
+          localStreamRef.current = stream;
+          setLocalStream(stream);
+          if (activeCall.type === 'video' && !hasVideo && hasAudio) {
+            setMediaError('Không mở được camera; cuộc gọi vẫn tiếp tục bằng micro.');
+          } else if (!hasAudio && hasVideo) {
+            setMediaError('Không tìm thấy micro; cuộc gọi vẫn tiếp tục bằng camera.');
+          }
+          return stream;
+        } catch (error) {
+          lastError = error;
         }
-        throw error;
       }
+
+      const errorName = lastError instanceof DOMException ? lastError.name : '';
+      if (errorName === 'NotAllowedError' || errorName === 'SecurityError') {
+        setMediaError('Hãy cho phép Pinkmess dùng micro/camera trong Safari hoặc Chrome, rồi bấm “Thử lại thiết bị”.');
+      } else if (errorName === 'NotReadableError' || errorName === 'AbortError') {
+        setMediaError('Micro/camera đang được ứng dụng khác sử dụng. Cuộc gọi vẫn kết nối ở chế độ chỉ nghe.');
+      } else if (errorName === 'NotFoundError' || errorName === 'OverconstrainedError') {
+        setMediaError('Không tìm thấy mic/camera trên thiết bị. Cuộc gọi vẫn kết nối ở chế độ chỉ nghe.');
+      } else {
+        setMediaError('Thiết bị chưa sẵn sàng. Cuộc gọi vẫn kết nối ở chế độ chỉ nghe.');
+      }
+
+      // A missing local device must not prevent the peer connection from being
+      // created. The caller can still receive remote audio/video.
+      mediaUnavailableForCallRef.current = expectedCallId;
+      return null;
     })();
     mediaRequestRef.current = request;
     try {
@@ -276,11 +292,23 @@ export const CallManager: React.FC<CallManagerProps> = ({
   const ensurePeerConnection = async () => {
     const stream = await getLocalMedia();
     const peerConnection = await createPeerConnection();
-    stream.getTracks().forEach((track) => {
+    stream?.getTracks().forEach((track) => {
       if (!peerConnection.getSenders().some((sender) => sender.track === track)) {
         peerConnection.addTrack(track, stream);
       }
     });
+
+    // Keep a call usable when Safari/desktop has no local mic or camera. These
+    // receive-only transceivers let the peer connection negotiate remote media
+    // instead of failing with “Requested device not found”.
+    const localKinds = new Set(stream?.getTracks().map((track) => track.kind) || []);
+    const transceiverKinds = new Set(peerConnection.getTransceivers().map((transceiver) => transceiver.receiver.track.kind));
+    if (!localKinds.has('audio') && !transceiverKinds.has('audio')) {
+      peerConnection.addTransceiver('audio', { direction: 'recvonly' });
+    }
+    if (callStateRef.current.type === 'video' && !localKinds.has('video') && !transceiverKinds.has('video')) {
+      peerConnection.addTransceiver('video', { direction: 'recvonly' });
+    }
     return peerConnection;
   };
 
@@ -499,6 +527,24 @@ export const CallManager: React.FC<CallManagerProps> = ({
     }
   };
 
+  const retryLocalMedia = async () => {
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
+    localStreamRef.current = null;
+    mediaUnavailableForCallRef.current = null;
+    setLocalStream(null);
+    setMediaError(null);
+    try {
+      await ensurePeerConnection();
+      if (callStateRef.current.isInitiator && callStateRef.current.direction === 'connected') {
+        offerSentForCallRef.current = null;
+        await startOffer(true);
+      }
+    } catch (error) {
+      console.error('[WebRTC] Media retry failed:', error);
+      setMediaError('Chưa mở được thiết bị. Hãy kiểm tra quyền Safari/Chrome rồi thử lại.');
+    }
+  };
+
   if (!callState.active) return null;
 
   const isConnected = callState.direction === 'connected';
@@ -582,7 +628,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
 
             <div className="absolute right-3 top-3 h-28 w-40 overflow-hidden rounded-2xl border-2 border-[#FF82AE] bg-[#4C3441] shadow-2xl sm:h-36 sm:w-52 md:right-5 md:top-5 md:h-40 md:w-60">
               {callState.isVideoOff || !localStream?.getVideoTracks().length ? (
-                <div className="flex h-full w-full flex-col items-center justify-center bg-[#4C3441] p-2 text-center text-xs text-[#FFD6E5]"><VideoOff className="mb-1 h-6 w-6 opacity-70" /><span>{localStream ? 'Camera của bạn đang tắt' : 'Đang mở camera...'}</span></div>
+                <div className="flex h-full w-full flex-col items-center justify-center bg-[#4C3441] p-2 text-center text-xs text-[#FFD6E5]"><VideoOff className="mb-1 h-6 w-6 opacity-70" /><span>{localStream ? 'Camera của bạn đang tắt' : 'Camera chưa sẵn sàng'}</span></div>
               ) : <video ref={localVideoRef} autoPlay playsInline muted className="h-full w-full object-cover" />}
               <div className="absolute bottom-1.5 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">Bạn ({currentUser.name}) {callState.isMuted && '🔇'}</div>
             </div>
@@ -601,7 +647,14 @@ export const CallManager: React.FC<CallManagerProps> = ({
         )}
       </div>
 
-      {mediaError && <div className="mx-auto mb-2 max-w-2xl rounded-xl border border-amber-300/40 bg-amber-500/15 px-4 py-2 text-center text-xs text-amber-100">{mediaError}</div>}
+      {mediaError && (
+        <div className="mx-auto mb-2 flex max-w-2xl flex-wrap items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-500/15 px-4 py-2 text-center text-xs text-amber-100">
+          <span>{mediaError}</span>
+          <button onClick={retryLocalMedia} className="rounded-full bg-[#FF82AE] px-3 py-1 font-bold text-white transition hover:bg-[#FF4F8B]">
+            Thử lại thiết bị
+          </button>
+        </div>
+      )}
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
 
       <div className="z-20 flex items-center justify-center gap-3 p-5 md:gap-4 md:p-6">
