@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Send,
-  Sparkles,
+  Plus,
   Smile,
-  Paperclip,
   Mic,
-  Square,
   X,
   Image as ImageIcon,
   Check,
@@ -58,6 +56,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 }) => {
   const [text, setText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showActionMenu, setShowActionMenu] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -360,9 +359,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex w-full items-end gap-1.5 rounded-[28px] border border-[#F7DDE8] bg-[#FFF0F6]/70 px-2 py-1.5 shadow-xs transition-all focus-within:border-[#FF82AE] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#FFD6E5]/80 md:gap-2 md:px-3 md:py-2">
-          {/* Action buttons */}
-          <div className="flex shrink-0 items-center gap-0.5">
+        <div className="flex w-full items-end gap-1.5 rounded-[28px] border border-[#F7DDE8] bg-[#FFF0F6]/70 px-2 py-1.5 shadow-xs transition-all focus-within:border-[#FF82AE] focus-within:bg-white md:gap-2 md:px-3 md:py-2">
+          {/* Extra actions stay hidden until the user taps +. */}
+          <div className="relative flex shrink-0 items-center">
             <input
               type="file"
               ref={fileInputRef}
@@ -372,45 +371,79 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             />
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-[#927D8A] transition-colors hover:bg-[#FFE4F0] hover:text-[#FF4F8B]"
-              title="Thêm ảnh hoặc tệp"
-              aria-label="Thêm ảnh hoặc tệp"
-            >
-              <ImageIcon className="h-[18px] w-[18px]" />
-            </button>
-
-            <button
-              type="button"
-              onClick={onRequestLocation}
-              className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${isLocationSharing ? 'bg-[#FF82AE] text-white shadow-xs' : 'text-[#927D8A] hover:bg-[#FFE4F0] hover:text-[#FF4F8B]'}`}
-              title={isLocationSharing ? 'Đang chia sẻ vị trí trực tiếp' : 'Xin phép chia sẻ vị trí trực tiếp với người này'}
-            >
-              <MapPin className="h-[18px] w-[18px]" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-[#927D8A] transition-colors hover:bg-[#FFE4F0] hover:text-[#FF4F8B]"
-              title="Emoji dễ thương"
-            >
-              <Smile className="h-[18px] w-[18px]" />
-            </button>
-
-            <button
-              type="button"
-              onClick={onToggleStickerPicker}
-              className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-all ${
-                isStickerPickerOpen
-                  ? 'bg-[#FF82AE] text-white shadow-xs'
-                  : 'text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFE4F0]'
+              onClick={() => setShowActionMenu((open) => !open)}
+              className={`flex h-9 w-9 items-center justify-center rounded-full transition-all active:scale-95 ${
+                showActionMenu
+                  ? 'bg-[#FF82AE] text-white shadow-sm'
+                  : 'text-[#927D8A] hover:bg-[#FFE4F0] hover:text-[#FF4F8B]'
               }`}
-              title="Mở kho Sticker Bunny World"
+              title="Mở thêm tiện ích"
+              aria-label="Mở thêm tiện ích"
+              aria-expanded={showActionMenu}
             >
-              <span className="text-base leading-none">🐰</span>
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#FF4F8B]" />
+              <Plus className="h-5 w-5" />
             </button>
+
+            {showActionMenu && (
+              <div className="absolute bottom-full left-0 mb-2 flex items-center gap-1.5 rounded-2xl border border-[#FFD6E5] bg-white p-2 shadow-xl z-40 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowActionMenu(false);
+                    fileInputRef.current?.click();
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#927D8A] hover:bg-[#FFF0F6] hover:text-[#FF4F8B]"
+                  title="Thêm ảnh hoặc tệp"
+                  aria-label="Thêm ảnh hoặc tệp"
+                >
+                  <ImageIcon className="h-[18px] w-[18px]" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowActionMenu(false);
+                    onRequestLocation();
+                  }}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${isLocationSharing ? 'bg-[#FF82AE] text-white shadow-xs' : 'text-[#927D8A] hover:bg-[#FFF0F6] hover:text-[#FF4F8B]'}`}
+                  title={isLocationSharing ? 'Đang chia sẻ vị trí trực tiếp' : 'Xin phép chia sẻ vị trí trực tiếp với người này'}
+                  aria-label="Chia sẻ vị trí"
+                >
+                  <MapPin className="h-[18px] w-[18px]" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowActionMenu(false);
+                    setShowEmojiPicker((open) => !open);
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#927D8A] hover:bg-[#FFF0F6] hover:text-[#FF4F8B]"
+                  title="Emoji dễ thương"
+                  aria-label="Mở emoji"
+                >
+                  <Smile className="h-[18px] w-[18px]" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowActionMenu(false);
+                    onToggleStickerPicker();
+                  }}
+                  className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all ${
+                    isStickerPickerOpen
+                      ? 'bg-[#FF82AE] text-white shadow-xs'
+                      : 'text-[#927D8A] hover:text-[#FF4F8B] hover:bg-[#FFF0F6]'
+                  }`}
+                  title="Mở kho Sticker Bunny World"
+                  aria-label="Mở kho sticker"
+                >
+                  <span className="text-base leading-none">🐰</span>
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#FF4F8B]" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Text input area */}
@@ -422,7 +455,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             onKeyDown={handleKeyDown}
             placeholder="Nhắn điều dễ thương gì đó đi... 💌"
             style={{ fontFamily: selectedFontFamily }}
-            className="min-w-0 flex-1 max-h-28 min-h-9 resize-none overflow-y-auto bg-transparent px-2 py-2 text-sm leading-5 text-[#4C3441] placeholder:text-[#927D8A]/70 focus:outline-none"
+            className="pinkmess-composer-input min-w-0 flex-1 max-h-28 min-h-9 resize-none overflow-y-auto bg-transparent px-2 py-2 text-sm leading-5 text-[#4C3441] placeholder:text-[#927D8A]/70 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
           />
 
           {/* Right action button: Voice record OR Send */}
