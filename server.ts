@@ -669,6 +669,18 @@ async function startServer() {
   const socketToUser = new Map<string, string>();
   const userToSockets = new Map<string, Set<string>>();
   const activeCalls = new Map<string, { fromUserId: string; targetUserId: string }>();
+  const activeGroupCalls = new Map<
+    string,
+    {
+      callId: string;
+      conversationId: string;
+      type: 'audio' | 'video';
+      hostUserId: string;
+      invitedUserIds: Set<string>;
+      participants: Set<string>;
+      createdAt: string;
+    }
+  >();
   const activeLocationSessions = new Map<string, ServerLocationSession>(
     (db.locationSessions || []).map((session) => [session.id, session])
   );
@@ -837,6 +849,33 @@ async function startServer() {
     return Boolean(userId && conversation?.participants.includes(userId));
   };
 
+  const groupParticipantUsers = (groupCall: { participants: Set<string> }) =>
+    Array.from(groupCall.participants)
+      .map((userId) => db.users.find((user) => user.id === userId))
+      .filter(Boolean)
+      .map((user) => toPublicUser(user));
+
+  const removeUserFromGroupCalls = (userId: string) => {
+    activeGroupCalls.forEach((groupCall, callId) => {
+      if (!groupCall.participants.has(userId)) return;
+
+      if (groupCall.hostUserId === userId) {
+        groupCall.participants.forEach((participantId) => {
+          if (participantId !== userId) emitToUser(participantId, 'group-call:ended', { callId, endedBy: userId });
+        });
+        activeGroupCalls.delete(callId);
+        return;
+      }
+
+      groupCall.participants.delete(userId);
+      groupCall.invitedUserIds.delete(userId);
+      groupCall.participants.forEach((participantId) => {
+        emitToUser(participantId, 'group-call:participant-left', { callId, userId });
+      });
+      if (groupCall.participants.size === 0) activeGroupCalls.delete(callId);
+    });
+  };
+
   const detachSocketUser = (socketId: string, announce = true) => {
     const userId = socketToUser.get(socketId);
     if (!userId) return;
@@ -845,6 +884,7 @@ async function startServer() {
     sockets?.delete(socketId);
     if (sockets && sockets.size > 0) return;
     userToSockets.delete(userId);
+    removeUserFromGroupCalls(userId);
     const user = db.users.find((candidate) => candidate.id === userId);
     if (user) {
       user.status = 'away';
@@ -1328,22 +1368,173 @@ async function startServer() {
       emitToUser(payload.targetUserId, 'webrtc:signal', { ...payload, fromUserId });
     });
 
-    // Group call signaling
-    socket.on('group-call:join', ({ roomId, user }: any) => {
-      socket.join(roomId);
-      socket.to(roomId).emit('group-call:user-joined', { socketId: socket.id, user });
+    // Group WebRTC signaling. The server never mixes media; it only validates
+    // the room and routes each SDP/ICE packet to its intended user. Keeping
+    // the signaling user-based (instead of socketId-based) also survives a
+    // phone reconnect and supports multiple tabs for the same account.
+    socket.on('group-call:invite', (payload: any) => {
+      const hostUserId = socketToUser.get(socket.id);
+      const conversationId = String(payload?.conversationId || '');
+      const conversation = getConversation(conversationId);
+      if (!hostUserId || !conversation || conversation.type !== 'group' || !conversation.participants.includes(hostUserId)) return;
+
+      const participantIds = Array.from(new Set([
+        hostUserId,
+        ...(Array.isArray(payload?.participantIds) ? payload.participantIds.map((id: unknown) => String(id)) : conversation.participants)
+      ])).filter((userId) => conversation.participants.includes(userId));
+      if (participantIds.length < 2 || participantIds.length > 6) {
+        socket.emit('group-call:unavailable', {
+          callId: payload?.callId,
+          message: 'Cuộc gọi nhóm hiện hỗ trợ tối đa 6 người để giữ hình và tiếng mượt nhất.'
+        });
+        return;
+      }
+
+      const existingCall = Array.from(activeGroupCalls.values()).find(
+        (groupCall) => groupCall.conversationId === conversationId && groupCall.participants.has(hostUserId)
+      );
+      if (existingCall) {
+        socket.emit('group-call:unavailable', { callId: existingCall.callId, message: 'Nhóm này đang có một cuộc gọi.' });
+        return;
+      }
+
+      const callId = String(payload?.callId || `group_call_${Date.now()}`);
+      const groupCall = {
+        callId,
+        conversationId,
+        type: payload?.type === 'video' ? 'video' as const : 'audio' as const,
+        hostUserId,
+        invitedUserIds: new Set(participantIds),
+        participants: new Set([hostUserId]),
+        createdAt: new Date().toISOString()
+      };
+      activeGroupCalls.set(callId, groupCall);
+
+      const invitedUsers = participantIds
+        .map((userId) => db.users.find((user) => user.id === userId))
+        .filter(Boolean)
+        .map((user) => toPublicUser(user));
+      const host = db.users.find((user) => user.id === hostUserId);
+      participantIds.filter((userId) => userId !== hostUserId).forEach((targetUserId) => {
+        if (!userToSockets.has(targetUserId)) return;
+        emitToUser(targetUserId, 'group-call:incoming', {
+          callId,
+          conversationId,
+          type: groupCall.type,
+          hostUserId,
+          fromUser: host ? toPublicUser(host) : null,
+          participants: invitedUsers
+        });
+      });
+      emitToUser(hostUserId, 'group-call:started', {
+        callId,
+        conversationId,
+        type: groupCall.type,
+        hostUserId,
+        participants: invitedUsers
+      });
     });
 
-    socket.on('group-call:leave', ({ roomId, userId }: any) => {
-      socket.leave(roomId);
-      socket.to(roomId).emit('group-call:user-left', { socketId: socket.id, userId });
+    socket.on('group-call:join', (payload: any) => {
+      const userId = socketToUser.get(socket.id);
+      const callId = String(payload?.callId || '');
+      const groupCall = activeGroupCalls.get(callId);
+      if (!userId || !groupCall || groupCall.conversationId !== String(payload?.conversationId || '') || !groupCall.invitedUserIds.has(userId)) return;
+      if (groupCall.participants.size >= 6 && !groupCall.participants.has(userId)) {
+        socket.emit('group-call:unavailable', { callId, message: 'Phòng đã đủ 6 người để bảo đảm latency thấp.' });
+        return;
+      }
+
+      groupCall.participants.add(userId);
+      const participant = db.users.find((candidate) => candidate.id === userId);
+      const participantPayload = participant ? toPublicUser(participant) : null;
+      const activeParticipants = groupParticipantUsers(groupCall);
+      emitToUser(userId, 'group-call:joined', {
+        callId,
+        conversationId: groupCall.conversationId,
+        type: groupCall.type,
+        hostUserId: groupCall.hostUserId,
+        participants: activeParticipants
+      });
+      groupCall.participants.forEach((participantId) => {
+        if (participantId !== userId) {
+          emitToUser(participantId, 'group-call:participant-joined', {
+            callId,
+            participant: participantPayload
+          });
+        }
+      });
     });
 
-    socket.on('group-call:signal', ({ targetSocketId, signal, senderUser }: any) => {
-      io.to(targetSocketId).emit('group-call:signal', {
-        senderSocketId: socket.id,
-        signal,
-        senderUser
+    socket.on('group-call:reject', (payload: any) => {
+      const userId = socketToUser.get(socket.id);
+      const groupCall = activeGroupCalls.get(String(payload?.callId || ''));
+      if (!userId || !groupCall || !groupCall.invitedUserIds.has(userId)) return;
+      emitToUser(groupCall.hostUserId, 'group-call:participant-rejected', {
+        callId: groupCall.callId,
+        userId
+      });
+    });
+
+    socket.on('group-call:leave', (payload: any) => {
+      const userId = socketToUser.get(socket.id);
+      const callId = String(payload?.callId || '');
+      const groupCall = activeGroupCalls.get(callId);
+      if (!userId || !groupCall || !groupCall.participants.has(userId)) return;
+
+      if (groupCall.hostUserId === userId) {
+        groupCall.participants.forEach((participantId) => {
+          if (participantId !== userId) emitToUser(participantId, 'group-call:ended', { callId, endedBy: userId });
+        });
+        activeGroupCalls.delete(callId);
+        return;
+      }
+
+      groupCall.participants.delete(userId);
+      groupCall.participants.forEach((participantId) => emitToUser(participantId, 'group-call:participant-left', { callId, userId }));
+      if (groupCall.participants.size === 0) activeGroupCalls.delete(callId);
+    });
+
+    socket.on('group-call:end', (payload: any) => {
+      const userId = socketToUser.get(socket.id);
+      const callId = String(payload?.callId || '');
+      const groupCall = activeGroupCalls.get(callId);
+      if (!userId || !groupCall || groupCall.hostUserId !== userId) return;
+      groupCall.participants.forEach((participantId) => {
+        if (participantId !== userId) emitToUser(participantId, 'group-call:ended', { callId, endedBy: userId });
+      });
+      activeGroupCalls.delete(callId);
+    });
+
+    socket.on('group-call:media-state', (payload: any) => {
+      const userId = socketToUser.get(socket.id);
+      const callId = String(payload?.callId || '');
+      const groupCall = activeGroupCalls.get(callId);
+      if (!userId || !groupCall || !groupCall.participants.has(userId)) return;
+      groupCall.participants.forEach((participantId) => {
+        if (participantId !== userId) {
+          emitToUser(participantId, 'group-call:media-state', {
+            callId,
+            fromUserId: userId,
+            isMuted: Boolean(payload?.isMuted),
+            isVideoOff: Boolean(payload?.isVideoOff)
+          });
+        }
+      });
+    });
+
+    socket.on('group-webrtc:signal', (payload: any) => {
+      const fromUserId = socketToUser.get(socket.id);
+      const callId = String(payload?.callId || '');
+      const targetUserId = String(payload?.targetUserId || '');
+      const groupCall = activeGroupCalls.get(callId);
+      if (!fromUserId || !groupCall || !targetUserId || fromUserId === targetUserId || !groupCall.participants.has(fromUserId) || !groupCall.participants.has(targetUserId)) return;
+      emitToUser(targetUserId, 'group-webrtc:signal', {
+        callId,
+        fromUserId,
+        targetUserId,
+        kind: payload?.kind,
+        signal: payload?.signal
       });
     });
 
