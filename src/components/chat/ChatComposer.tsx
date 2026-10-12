@@ -23,6 +23,7 @@ interface ChatComposerProps {
     isAnimatedSticker?: boolean;
     fontFamily?: string;
     audioDuration?: number;
+    audioMimeType?: string;
     attachments?: any[];
     replyToId?: string;
     replyToMessage?: any;
@@ -157,7 +158,18 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const supportedMimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+        'audio/webm'
+      ];
+      const preferredMimeType = supportedMimeTypes.find((mimeType) =>
+        typeof MediaRecorder.isTypeSupported !== 'function' || MediaRecorder.isTypeSupported(mimeType)
+      );
+      const mediaRecorder = preferredMimeType
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       cancelRecordingRef.current = false;
@@ -176,7 +188,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           return;
         }
 
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        // Safari records AAC/MP4 while Chromium usually records Opus/WebM.
+        // Preserve the actual container so the receiver can play it too.
+        const audioMimeType = mediaRecorder.mimeType || preferredMimeType || audioChunksRef.current[0]?.type || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: audioMimeType });
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64Audio = reader.result as string;
@@ -184,7 +199,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           onSendMessage({
             type: 'AUDIO',
             content: base64Audio,
-            audioDuration: recordSecondsRef.current || 1
+            audioDuration: recordSecondsRef.current || 1,
+            audioMimeType
           });
         };
         reader.readAsDataURL(audioBlob);
