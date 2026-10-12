@@ -8,6 +8,7 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import webpush from 'web-push';
+import { Pool } from 'pg';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +16,17 @@ const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'hustmess_db.json');
+const DATABASE_URL = process.env.DATABASE_URL?.trim() || '';
+const databasePool = DATABASE_URL
+  ? new Pool({
+      connectionString: DATABASE_URL,
+      ssl: process.env.DATABASE_SSL === 'disable' ? false : { rejectUnauthorized: false },
+      max: 5,
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000
+    })
+  : null;
+const DATABASE_TABLE = 'pinkmess_app_state';
 
 const LEGACY_DEMO_USER_IDS = new Set(['user_bunny', 'user_linh', 'user_hoa', 'user_nam']);
 const LEGACY_DEMO_CONVERSATION_IDS = new Set(['conv_bunny_linh', 'conv_group_cute', 'conv_bunny_nam']);
@@ -364,6 +376,11 @@ let db: Database = {
   locationSessions: []
 };
 
+let databaseReady = false;
+let databaseSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let databaseSaveQueue = Promise.resolve();
+let databaseSaveWarningShown = false;
+
 function removeLegacyDemoData(raw: Partial<Database>): Database {
   const users = (Array.isArray(raw.users) ? raw.users : []).filter(
     (user: any) =>
@@ -417,35 +434,118 @@ function removeLegacyDemoData(raw: Partial<Database>): Database {
   };
 }
 
-if (fs.existsSync(DB_FILE)) {
-  try {
-    const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    db = removeLegacyDemoData(JSON.parse(raw));
-    // Ensure all users have bunnyId
-    db.users.forEach((u: any) => {
-      if (!u.bunnyId) {
-        if (u.id === 'user_bunny') u.bunnyId = 'bunny_cute';
-        else if (u.id === 'user_linh') u.bunnyId = 'linh_meo';
-        else if (u.id === 'user_hoa') u.bunnyId = 'mochi_hoa';
-        else if (u.id === 'user_nam') u.bunnyId = 'nam_dev';
-        else u.bunnyId = u.email ? u.email.split('@')[0] : u.id;
-      }
-    });
-    saveDb();
-    console.log('[DB] Loaded persistent data successfully.');
-  } catch (err) {
-    console.error('[DB] Failed to parse db file, re-initializing.', err);
-    saveDb();
-  }
-} else {
-  saveDb();
+function ensureUserBunnyIds() {
+  db.users.forEach((u: any) => {
+    if (!u.bunnyId) {
+      if (u.id === 'user_bunny') u.bunnyId = 'bunny_cute';
+      else if (u.id === 'user_linh') u.bunnyId = 'linh_meo';
+      else if (u.id === 'user_hoa') u.bunnyId = 'mochi_hoa';
+      else if (u.id === 'user_nam') u.bunnyId = 'nam_dev';
+      else u.bunnyId = u.email ? u.email.split('@')[0] : u.id;
+    }
+  });
 }
 
-function saveDb() {
+function writeLocalDb() {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
   } catch (err) {
     console.error('[DB] Error saving data:', err);
+  }
+}
+
+async function writeDatabaseSnapshot(snapshot = JSON.stringify(db)) {
+  if (!databasePool) return;
+  await databasePool.query(
+    `INSERT INTO ${DATABASE_TABLE} (id, payload, updated_at)
+     VALUES (1, $1::jsonb, NOW())
+     ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+    [snapshot]
+  );
+}
+
+function saveDb() {
+  // Keep a local copy for development and as a migration source. Render's
+  // default filesystem is ephemeral, so the durable copy is PostgreSQL below.
+  writeLocalDb();
+  if (!databasePool || !databaseReady) return;
+
+  if (databaseSaveTimer) clearTimeout(databaseSaveTimer);
+  databaseSaveTimer = setTimeout(() => {
+    databaseSaveTimer = null;
+    const snapshot = JSON.stringify(db);
+    databaseSaveQueue = databaseSaveQueue
+      .catch(() => undefined)
+      .then(() => writeDatabaseSnapshot(snapshot))
+      .catch((error) => {
+        if (!databaseSaveWarningShown) {
+          databaseSaveWarningShown = true;
+          console.error('[DB] PostgreSQL save failed; the next update will retry.', error);
+        }
+      });
+  }, 150);
+}
+
+async function flushDatabase() {
+  if (!databasePool || !databaseReady) return;
+  if (databaseSaveTimer) {
+    clearTimeout(databaseSaveTimer);
+    databaseSaveTimer = null;
+  }
+  await databaseSaveQueue.catch(() => undefined);
+  await writeDatabaseSnapshot();
+}
+
+function loadLocalDatabase() {
+  if (fs.existsSync(DB_FILE)) {
+    try {
+      const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      db = removeLegacyDemoData(JSON.parse(raw));
+      ensureUserBunnyIds();
+      writeLocalDb();
+      console.log('[DB] Loaded local database snapshot.');
+      return;
+    } catch (error) {
+      console.error('[DB] Failed to parse local database snapshot; starting clean.', error);
+    }
+  }
+
+  // New deployments intentionally start without demo users or fake chats.
+  db = removeLegacyDemoData({});
+  ensureUserBunnyIds();
+  writeLocalDb();
+}
+
+async function loadPersistentDatabase() {
+  loadLocalDatabase();
+  if (!databasePool) {
+    console.warn('[DB] DATABASE_URL is not configured; using local filesystem only. Data will not survive a Render restart.');
+    return;
+  }
+
+  try {
+    await databasePool.query(`
+      CREATE TABLE IF NOT EXISTS ${DATABASE_TABLE} (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        payload JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    const result = await databasePool.query(`SELECT payload FROM ${DATABASE_TABLE} WHERE id = 1`);
+    if (result.rows[0]?.payload) {
+      db = removeLegacyDemoData(result.rows[0].payload as Partial<Database>);
+      ensureUserBunnyIds();
+      writeLocalDb();
+      console.log('[DB] Loaded durable PostgreSQL database successfully.');
+    } else {
+      databaseReady = true;
+      await writeDatabaseSnapshot();
+      console.log('[DB] Migrated the local snapshot to PostgreSQL.');
+    }
+    databaseReady = true;
+  } catch (error) {
+    databaseReady = false;
+    console.error('[DB] PostgreSQL is unavailable; falling back to local snapshot.', error);
   }
 }
 
@@ -549,6 +649,8 @@ function createGoogleUser(profile: { sub?: string; email?: string; name?: string
 }
 
 async function startServer() {
+  await loadPersistentDatabase();
+
   const app = express();
   const server = http.createServer(app);
 
@@ -1726,6 +1828,20 @@ async function startServer() {
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
   }
+
+  const shutdown = async (signal: string) => {
+    console.log(`[Server] ${signal} received; flushing Pinkmess data.`);
+    try {
+      await flushDatabase();
+    } catch (error) {
+      console.error('[DB] Could not flush PostgreSQL before shutdown:', error);
+    }
+    if (databasePool) await databasePool.end().catch(() => undefined);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  };
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🐰 Pinkmess — Bunny Chat dev server running at http://0.0.0.0:${PORT}`);
