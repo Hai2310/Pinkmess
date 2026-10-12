@@ -72,6 +72,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
   const callStateRef = useRef(callState);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [remoteTrackVersion, setRemoteTrackVersion] = useState(0);
   const [callDuration, setCallDuration] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed'>('idle');
   const [mediaError, setMediaError] = useState<string | null>(null);
@@ -116,9 +117,12 @@ export const CallManager: React.FC<CallManagerProps> = ({
 
   const attachRemoteStream = (stream: MediaStream) => {
     remoteStreamRef.current = stream;
-    // Use a fresh MediaStream object so React re-renders when the second track
-    // (normally video after audio) arrives on the same underlying stream.
-    setRemoteStream(new MediaStream(stream.getTracks()));
+    // Keep the original stream identity. Replacing it whenever a second track
+    // arrives makes the video element reload and can look like a camera flip.
+    setRemoteStream((previous) => previous === stream ? previous : stream);
+    // A MediaStream mutates in place when the other track arrives, so React
+    // still needs a tiny render tick to replace the waiting placeholder.
+    setRemoteTrackVersion((version) => version + 1);
     setConnectionStatus('connected');
 
     window.setTimeout(() => {
@@ -360,6 +364,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
     setCallDuration(0);
     setConnectionStatus(callState.direction === 'incoming' ? 'idle' : 'connecting');
     setRemoteStream(null);
+    setRemoteTrackVersion(0);
     remoteStreamRef.current = null;
     pendingIceCandidatesRef.current = [];
     offerSentForCallRef.current = null;
@@ -443,7 +448,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
   // Attach streams after the React video/audio elements exist.
   useEffect(() => {
     if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
+      if (localVideoRef.current.srcObject !== localStream) localVideoRef.current.srcObject = localStream;
       localVideoRef.current.play().catch(() => undefined);
     }
   }, [localStream, callState.isVideoOff]);
@@ -451,14 +456,14 @@ export const CallManager: React.FC<CallManagerProps> = ({
   useEffect(() => {
     if (!remoteStream) return;
     if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteStream;
+      if (remoteVideoRef.current.srcObject !== remoteStream) remoteVideoRef.current.srcObject = remoteStream;
       remoteVideoRef.current.play().then(() => setNeedsAudioUnlock(false)).catch(() => setNeedsAudioUnlock(true));
     }
     if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = remoteStream;
+      if (remoteAudioRef.current.srcObject !== remoteStream) remoteAudioRef.current.srcObject = remoteStream;
       remoteAudioRef.current.play().then(() => setNeedsAudioUnlock(false)).catch(() => setNeedsAudioUnlock(true));
     }
-  }, [remoteStream, callState.type, callState.remoteIsVideoOff]);
+  }, [remoteStream, remoteTrackVersion, callState.type, callState.remoteIsVideoOff]);
 
   useEffect(() => {
     if (!localStream) return;
@@ -610,7 +615,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
         {callState.type === 'video' ? (
           <div className="relative flex h-full w-full max-w-6xl items-center justify-center overflow-hidden rounded-3xl border-2 border-[#FF82AE]/40 bg-black/60">
             {!callState.remoteIsVideoOff && remoteStream?.getVideoTracks().length ? (
-              <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-contain" onClick={unlockRemoteAudio} />
+              <video ref={remoteVideoRef} autoPlay playsInline data-track-version={remoteTrackVersion} className="h-full w-full object-contain" style={{ transform: 'none' }} onClick={unlockRemoteAudio} />
             ) : (
               <div className="flex flex-col items-center justify-center p-6 text-center">
                 <div className="relative mb-4"><img src={callState.targetUser?.avatar || '/src/assets/images/bunny_calling_avatar_1791670258938.jpg'} alt="Remote peer" className="h-40 w-40 rounded-full border-4 border-[#FF82AE] object-cover shadow-2xl" /><span className="absolute bottom-1 right-1 rounded-full bg-[#FF4F8B] p-2 text-xs">{callState.remoteIsVideoOff ? <VideoOff className="h-4 w-4" /> : '🌸'}</span></div>
@@ -629,7 +634,7 @@ export const CallManager: React.FC<CallManagerProps> = ({
             <div className="absolute right-3 top-3 h-28 w-40 overflow-hidden rounded-2xl border-2 border-[#FF82AE] bg-[#4C3441] shadow-2xl sm:h-36 sm:w-52 md:right-5 md:top-5 md:h-40 md:w-60">
               {callState.isVideoOff || !localStream?.getVideoTracks().length ? (
                 <div className="flex h-full w-full flex-col items-center justify-center bg-[#4C3441] p-2 text-center text-xs text-[#FFD6E5]"><VideoOff className="mb-1 h-6 w-6 opacity-70" /><span>{localStream ? 'Camera của bạn đang tắt' : 'Camera chưa sẵn sàng'}</span></div>
-              ) : <video ref={localVideoRef} autoPlay playsInline muted className="h-full w-full object-cover" />}
+              ) : <video ref={localVideoRef} autoPlay playsInline muted className="h-full w-full object-cover" style={{ transform: callState.isScreenSharing ? 'none' : 'scaleX(-1)' }} />}
               <div className="absolute bottom-1.5 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">Bạn ({currentUser.name}) {callState.isMuted && '🔇'}</div>
             </div>
 

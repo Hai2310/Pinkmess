@@ -75,7 +75,9 @@ export default function App() {
     isScreenSharing: false,
     duration: 0
   });
-  const [groupCallSignal, setGroupCallSignal] = useState<GroupWebRTCSignal | null>(null);
+  // Group ICE/SDP packets arrive in bursts. Keep a bounded queue so a late
+  // React render cannot overwrite the previous candidate before it is handled.
+  const [groupCallSignals, setGroupCallSignals] = useState<GroupWebRTCSignal[]>([]);
 
   const typingTimeoutRef = useRef<number | null>(null);
   const locationWatchersRef = useRef<Map<string, number>>(new Map());
@@ -614,7 +616,7 @@ export default function App() {
     const handleGroupCallEnded = (payload: any) => {
       if (!payload?.callId) return;
       setGroupCallState((previous) => previous.callId === payload.callId ? { ...previous, active: false } : previous);
-      setGroupCallSignal(null);
+      setGroupCallSignals([]);
     };
 
     const handleGroupCallUnavailable = (payload: any) => {
@@ -625,7 +627,7 @@ export default function App() {
 
     const handleGroupWebRTCSignal = (payload: GroupWebRTCSignal) => {
       if (!payload?.callId || payload.targetUserId !== currentUser?.id) return;
-      setGroupCallSignal(payload);
+      setGroupCallSignals((previous) => [...previous, payload].slice(-256));
     };
 
     socket.on('message:new', handleNewMessage);
@@ -1024,7 +1026,7 @@ export default function App() {
   const handleRejectGroupCall = () => {
     if (groupCallState.callId) getSocket().emit('group-call:reject', { callId: groupCallState.callId });
     setGroupCallState((previous) => ({ ...previous, active: false }));
-    setGroupCallSignal(null);
+    setGroupCallSignals([]);
   };
 
   const handleEndGroupCall = () => {
@@ -1035,7 +1037,7 @@ export default function App() {
       });
     }
     setGroupCallState((previous) => ({ ...previous, active: false }));
-    setGroupCallSignal(null);
+    setGroupCallSignals([]);
   };
 
   const handleToggleGroupMute = () => {
@@ -1436,7 +1438,7 @@ export default function App() {
       <GroupCallManager
         callState={groupCallState}
         currentUser={currentUser}
-        signal={groupCallSignal}
+        signals={groupCallSignals}
         onAcceptCall={handleAcceptGroupCall}
         onRejectCall={handleRejectGroupCall}
         onEndCall={handleEndGroupCall}

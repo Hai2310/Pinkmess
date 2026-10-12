@@ -25,7 +25,7 @@ export interface GroupWebRTCSignal {
 interface GroupCallManagerProps {
   callState: GroupCallState;
   currentUser: User;
-  signal: GroupWebRTCSignal | null;
+  signals: GroupWebRTCSignal[];
   onAcceptCall: () => void;
   onRejectCall: () => void;
   onEndCall: () => void;
@@ -126,7 +126,7 @@ const GroupLocalMedia: React.FC<{
 export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
   callState,
   currentUser,
-  signal,
+  signals,
   onAcceptCall,
   onRejectCall,
   onEndCall,
@@ -141,6 +141,10 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const offersSentRef = useRef<Set<string>>(new Set());
+  const processedSignalsRef = useRef<Set<string>>(new Set());
+  const deferredSignalsRef = useRef<Map<string, GroupWebRTCSignal[]>>(new Map());
+  const signalCallIdRef = useRef<string | null>(null);
+  const restartInProgressRef = useRef<Set<string>>(new Set());
   const iceServersRef = useRef<RTCIceServer[] | null>(null);
   const iceServersRequestRef = useRef<Promise<RTCIceServer[]> | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -276,7 +280,10 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
     remoteStreamsRef.current.set(userId, stream);
     // Keep one MediaStream identity per peer. Cloning it on every track event
     // forces the video element to reload and creates visible flicker.
-    setRemoteStreams((previous) => (previous[userId] === stream ? previous : { ...previous, [userId]: stream }));
+    // The stream object stays stable while tracks are added. Creating a new
+    // map makes the tile update when video arrives after audio, while the
+    // media element itself keeps the same srcObject and does not flicker.
+    setRemoteStreams((previous) => ({ ...previous, [userId]: stream }));
     setConnectionStatus('connected');
   };
 
@@ -331,13 +338,25 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
         setConnectionStates((previous) => ({ ...previous, [peerUserId]: state }));
         if (state === 'connected') setConnectionStatus('connected');
         if (state === 'connecting' || state === 'new') setConnectionStatus((previous) => previous === 'connected' ? previous : 'connecting');
-        if (state === 'failed') setConnectionStatus('failed');
+        if (state === 'failed') {
+          setConnectionStatus('failed');
+          if (currentUser.id < peerUserId && peerConnection.signalingState === 'stable' && !restartInProgressRef.current.has(peerUserId)) {
+            restartInProgressRef.current.add(peerUserId);
+            peerConnection.restartIce();
+            void sendOffer(peerUserId, peerConnection, true).finally(() => {
+              window.setTimeout(() => restartInProgressRef.current.delete(peerUserId), 5000);
+            });
+          }
+        }
       };
       peerConnection.oniceconnectionstatechange = () => {
         if (peerConnection.iceConnectionState === 'failed') {
-          peerConnection.restartIce();
-          if (shouldOffer && peerConnection.signalingState === 'stable') {
-            void sendOffer(peerUserId, peerConnection, true);
+          if (currentUser.id < peerUserId && peerConnection.signalingState === 'stable' && !restartInProgressRef.current.has(peerUserId)) {
+            restartInProgressRef.current.add(peerUserId);
+            peerConnection.restartIce();
+            void sendOffer(peerUserId, peerConnection, true).finally(() => {
+              window.setTimeout(() => restartInProgressRef.current.delete(peerUserId), 5000);
+            });
           }
         }
       };
@@ -388,7 +407,12 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
     const activeCall = callStateRef.current;
     if (!activeCall.active || incoming.callId !== activeCall.callId || incoming.targetUserId !== currentUser.id) return;
     const participant = activeCall.participants.find((item) => item.user.id === incoming.fromUserId);
-    if (!participant) return;
+    if (!participant || !participant.joined) {
+      const queued = deferredSignalsRef.current.get(incoming.fromUserId) || [];
+      queued.push(incoming);
+      deferredSignalsRef.current.set(incoming.fromUserId, queued.slice(-100));
+      return;
+    }
 
     try {
       const peerConnection = await createPeerConnection(participant, false);
@@ -421,10 +445,37 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
   };
 
   useEffect(() => {
-    if (signal) void handleSignal(signal);
-    // The signal object is an event snapshot; it is intentionally handled once.
+    if (!callState.active || !callState.callId) return;
+    signals
+      .filter((incoming) => incoming.callId === callState.callId)
+      .forEach((incoming) => {
+        const key = `${incoming.callId}:${incoming.fromUserId}:${incoming.kind}:${JSON.stringify(incoming.signal)}`;
+        if (processedSignalsRef.current.has(key)) return;
+        processedSignalsRef.current.add(key);
+        void handleSignal(incoming);
+      });
+    // App keeps a bounded event queue instead of a single signal snapshot so
+    // bursts of ICE candidates cannot overwrite one another.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signal]);
+  }, [signals, callState.active, callState.callId]);
+
+  useEffect(() => {
+    if (signalCallIdRef.current === callState.callId) return;
+    signalCallIdRef.current = callState.callId;
+    processedSignalsRef.current.clear();
+    deferredSignalsRef.current.clear();
+  }, [callState.callId]);
+
+  useEffect(() => {
+    if (!callState.active || callState.direction !== 'connected') return;
+    joinedParticipants.forEach((participant) => {
+      const queued = deferredSignalsRef.current.get(participant.user.id);
+      if (!queued?.length) return;
+      deferredSignalsRef.current.delete(participant.user.id);
+      queued.forEach((incoming) => void handleSignal(incoming));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callState.active, callState.callId, callState.direction, callState.participants.map((participant) => `${participant.user.id}:${participant.joined}`).join('|')]);
 
   useEffect(() => {
     if (!callState.active || callState.direction !== 'connected') return;
@@ -495,6 +546,9 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
     remoteStreamsRef.current.clear();
     pendingIceRef.current.clear();
     offersSentRef.current.clear();
+    processedSignalsRef.current.clear();
+    deferredSignalsRef.current.clear();
+    restartInProgressRef.current.clear();
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
     setLocalStream(null);
