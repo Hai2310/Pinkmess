@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "collectionId": "hazen-source",
+  "name": "Pinkmess Hazen — Trứng Bắc Thảo",
+  "description": "Bộ Hazen hài hước được tách riêng từ ZIP sticker người dùng cung cấp.",
+  "totalPacks": 1,
+  "totalStickers": 20,
+  "assetBasePath": "/stickers/hazen-source/",
+  "format": "image/png",
+  "transparentBackground": true,
+  "licenseNote": "Nguồn do người dùng cung cấp; metadata gốc được giữ trong README_VI.md.",
+  "packs": [
+    {
+      "id": "hazen-trung-bac-thao",
+      "name": "Hazen Trứng Bắc Thảo",
+      "displayName": "Hazen Tấu Hài",
+      "category": "Funny & Meme",
+      "cover": "PREVIEW.jpg",
+      "count": 20,
+      "animated": false,
+      "stickers": [
+        { "id": "hazen-001", "name": "Nhảy múa", "file": "stickers/001_dancing.png", "keywords": ["Hazen", "nhảy", "vui", "😂", "hài"] },
+        { "id": "hazen-002", "name": "Cười lăn", "file": "stickers/002_laughing.png", "keywords": ["Hazen", "cười", "haha", "🤣", "hài"] },
+        { "id": "hazen-003", "name": "Hú hồn với điện thoại", "file": "stickers/003_shocked_phone.png", "keywords": ["Hazen", "sốc", "điện thoại", "😱"] },
+        { "id": "hazen-004", "name": "Cười toe toét", "file": "stickers/004_grinning.png", "keywords": ["Hazen", "cười", "vui", "😁"] },
+        { "id": "hazen-005", "name": "Ngại ngùng", "file": "stickers/005_shy.png", "keywords": ["Hazen", "ngại", "dễ thương", "🥰"] },
+        { "id": "hazen-006", "name": "Thả thính", "file": "stickers/006_flirting.png", "keywords": ["Hazen", "thả thính", "hôn", "😘", "cặp đôi"] },
+        { "id": "hazen-007", "name": "Khóc nức nở", "file": "stickers/007_crying_hard.png", "keywords": ["Hazen", "khóc", "buồn", "😭"] },
+        { "id": "hazen-008", "name": "Like cái nè", "file": "stickers/008_thumbs_up.png", "keywords": ["Hazen", "like", "ok", "👍"] },
+        { "id": "hazen-009", "name": "Lêu lêu", "file": "stickers/009_tongue_out.png", "keywords": ["Hazen", "lêu lêu", "trêu", "😜"] },
+        { "id": "hazen-010", "name": "Cười banh nóc", "file": "stickers/010_laughing_face.png", "keywords": ["Hazen", "cười", "haha", "😆"] },
+        { "id": "hazen-011", "name": "La hét", "file": "stickers/011_screaming.png", "keywords": ["Hazen", "la hét", "hoảng", "😫"] },
+        { "id": "hazen-012", "name": "Cười đểu", "file": "stickers/012_evil_grin.png", "keywords": ["Hazen", "cà khịa", "đểu", "😏", "bựa"] },
+        { "id": "hazen-013", "name": "Khóc cùng đồng bọn", "file": "stickers/013_crying_with_friend.png", "keywords": ["Hazen", "khóc", "đồng bọn", "🥲"] },
+        { "id": "hazen-014", "name": "Buồn bên bờ biển", "file": "stickers/014_sad_ocean.png", "keywords": ["Hazen", "buồn", "cô đơn", "😢"] },
+        { "id": "hazen-015", "name": "Nghe điện thoại ngầu", "file": "stickers/015_mischievous_phone.png", "keywords": ["Hazen", "ngầu", "điện thoại", "😎"] },
+        { "id": "hazen-016", "name": "Đội mũ nổi giận", "file": "stickers/016_hat_angry.png", "keywords": ["Hazen", "giận", "bực", "😠"] },
+        { "id": "hazen-017", "name": "Bối rối chảy dãi", "file": "stickers/017_confused_drool.png", "keywords": ["Hazen", "bối rối", "không hiểu", "❓", "bựa"] },
+        { "id": "hazen-018", "name": "Buồn ngủ ôm ví", "file": "stickers/018_sleepy_wallet.png", "keywords": ["Hazen", "buồn ngủ", "hết tiền", "😪"] },
+        { "id": "hazen-019", "name": "Mặt vô tri", "file": "stickers/019_blank_stare.png", "keywords": ["Hazen", "vô tri", "im lặng", "😐"] },
+        { "id": "hazen-020", "name": "Học bài chăm chỉ", "file": "stickers/020_studying.png", "keywords": ["Hazen", "học bài", "làm việc", "📚"] }
+      ]
+    }
+  ]
+}

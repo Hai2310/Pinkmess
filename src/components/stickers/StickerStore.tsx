@@ -35,6 +35,7 @@ export const StickerStore: React.FC<StickerStoreProps> = ({
   const importedStickerCount = importedPacks.reduce((total, pack) => total + pack.stickers.length, 0);
   const githubPacks = importedPacks.filter((pack) => pack.collectionId === 'pinkmess-github');
   const githubStickerCount = githubPacks.reduce((total, pack) => total + pack.stickers.length, 0);
+  const hazenPacks = importedPacks.filter((pack) => pack.collectionId === 'hazen-source');
 
   const collections = [
     { id: 'all', label: '🌸 Tất cả kho', count: importedPacks.length },
@@ -42,6 +43,7 @@ export const StickerStore: React.FC<StickerStoreProps> = ({
     { id: 'hustmess-bunny', label: '🐰 Bunny World', count: importedPacks.filter((p) => p.collectionId === 'hustmess-bunny').length },
     { id: 'hustmess-people', label: '🌷 Cute People', count: importedPacks.filter((p) => p.collectionId === 'hustmess-people').length },
     { id: 'pinkmess-funny', label: '🤣 Funny Originals', count: importedPacks.filter((p) => p.collectionId === 'pinkmess-funny').length },
+    { id: 'hazen-source', label: '🥚 Hazen Tấu Hài', count: hazenPacks.length },
     { id: 'local', label: '✨ Pinkmess Originals', count: packs.filter((p) => !p.collectionId).length }
   ];
 
