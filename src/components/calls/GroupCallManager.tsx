@@ -143,6 +143,7 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
   const offersSentRef = useRef<Set<string>>(new Set());
   const processedSignalsRef = useRef<Set<string>>(new Set());
   const deferredSignalsRef = useRef<Map<string, GroupWebRTCSignal[]>>(new Map());
+  const signalProcessingRef = useRef<Map<string, Promise<void>>>(new Map());
   const signalCallIdRef = useRef<string | null>(null);
   const restartInProgressRef = useRef<Set<string>>(new Set());
   const iceServersRef = useRef<RTCIceServer[] | null>(null);
@@ -418,6 +419,12 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
       const peerConnection = await createPeerConnection(participant, false);
       if (!peerConnection) return;
       if (incoming.kind === 'offer') {
+        // Deterministic IDs normally avoid glare, but a reconnect can deliver
+        // an old offer while an ICE restart is being negotiated. Roll back the
+        // local offer so the newest remote offer can still be accepted.
+        if (peerConnection.signalingState !== 'stable') {
+          await peerConnection.setLocalDescription({ type: 'rollback' });
+        }
         await peerConnection.setRemoteDescription(incoming.signal as RTCSessionDescriptionInit);
         await flushPendingIce(incoming.fromUserId, peerConnection);
         const answer = await peerConnection.createAnswer();
@@ -444,6 +451,19 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
     }
   };
 
+  const queueSignal = (incoming: GroupWebRTCSignal) => {
+    const peerUserId = incoming.fromUserId;
+    const previous = signalProcessingRef.current.get(peerUserId) || Promise.resolve();
+    let next: Promise<void>;
+    next = previous
+      .catch(() => undefined)
+      .then(() => handleSignal(incoming))
+      .finally(() => {
+        if (signalProcessingRef.current.get(peerUserId) === next) signalProcessingRef.current.delete(peerUserId);
+      });
+    signalProcessingRef.current.set(peerUserId, next);
+  };
+
   useEffect(() => {
     if (!callState.active || !callState.callId) return;
     signals
@@ -452,7 +472,7 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
         const key = `${incoming.callId}:${incoming.fromUserId}:${incoming.kind}:${JSON.stringify(incoming.signal)}`;
         if (processedSignalsRef.current.has(key)) return;
         processedSignalsRef.current.add(key);
-        void handleSignal(incoming);
+        queueSignal(incoming);
       });
     // App keeps a bounded event queue instead of a single signal snapshot so
     // bursts of ICE candidates cannot overwrite one another.
@@ -464,6 +484,7 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
     signalCallIdRef.current = callState.callId;
     processedSignalsRef.current.clear();
     deferredSignalsRef.current.clear();
+    signalProcessingRef.current.clear();
   }, [callState.callId]);
 
   useEffect(() => {
@@ -472,7 +493,7 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
       const queued = deferredSignalsRef.current.get(participant.user.id);
       if (!queued?.length) return;
       deferredSignalsRef.current.delete(participant.user.id);
-      queued.forEach((incoming) => void handleSignal(incoming));
+      queued.forEach((incoming) => queueSignal(incoming));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callState.active, callState.callId, callState.direction, callState.participants.map((participant) => `${participant.user.id}:${participant.joined}`).join('|')]);
@@ -548,6 +569,7 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
     offersSentRef.current.clear();
     processedSignalsRef.current.clear();
     deferredSignalsRef.current.clear();
+    signalProcessingRef.current.clear();
     restartInProgressRef.current.clear();
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
