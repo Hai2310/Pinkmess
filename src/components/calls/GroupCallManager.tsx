@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Mic,
   MicOff,
@@ -52,10 +52,11 @@ const GroupRemoteMedia: React.FC<{
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (!mediaRef.current || !stream) return;
-    mediaRef.current.srcObject = stream;
-    mediaRef.current.play().catch(onUnlockAudio);
-  }, [stream, onUnlockAudio]);
+    const mediaElement = mediaRef.current;
+    if (!mediaElement || !stream) return;
+    if (mediaElement.srcObject !== stream) mediaElement.srcObject = stream;
+    void mediaElement.play().catch(onUnlockAudio);
+  }, [participant.isVideoOff, stream, type, onUnlockAudio]);
 
   if (type === 'audio') {
     return <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} autoPlay playsInline className="hidden" />;
@@ -63,22 +64,25 @@ const GroupRemoteMedia: React.FC<{
 
   if (!stream || participant.isVideoOff || stream.getVideoTracks().length === 0) {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center bg-[#4C3441] p-4 text-center">
-        <div className="relative mb-2">
-          <img
-            src={participant.user.avatar || '/src/assets/images/bunny_calling_avatar_1791670258938.jpg'}
-            alt={participant.user.name}
-            className="h-20 w-20 rounded-full border-2 border-[#FF82AE] object-cover"
-          />
-          <span className="absolute -bottom-1 -right-1 rounded-full bg-[#FF4F8B] p-1.5 text-white">
-            {participant.isVideoOff ? <VideoOff className="h-3.5 w-3.5" /> : <Radio className="h-3.5 w-3.5" />}
+      <>
+        {stream && <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} autoPlay playsInline className="hidden" />}
+        <div className="flex h-full w-full flex-col items-center justify-center bg-[#4C3441] p-4 text-center">
+          <div className="relative mb-2">
+            <img
+              src={participant.user.avatar || '/src/assets/images/bunny_calling_avatar_1791670258938.jpg'}
+              alt={participant.user.name}
+              className="h-20 w-20 rounded-full border-2 border-[#FF82AE] object-cover"
+            />
+            <span className="absolute -bottom-1 -right-1 rounded-full bg-[#FF4F8B] p-1.5 text-white">
+              {participant.isVideoOff ? <VideoOff className="h-3.5 w-3.5" /> : <Radio className="h-3.5 w-3.5" />}
+            </span>
+          </div>
+          <span className="max-w-full truncate text-sm font-bold text-white">{participant.user.name}</span>
+          <span className="mt-1 text-[11px] text-[#FFD6E5]">
+            {participant.isVideoOff ? 'Đã tắt camera' : 'Đang chờ luồng hình ảnh...'}
           </span>
         </div>
-        <span className="max-w-full truncate text-sm font-bold text-white">{participant.user.name}</span>
-        <span className="mt-1 text-[11px] text-[#FFD6E5]">
-          {participant.isVideoOff ? 'Đã tắt camera' : 'Đang chờ luồng hình ảnh...'}
-        </span>
-      </div>
+      </>
     );
   }
 
@@ -89,6 +93,32 @@ const GroupRemoteMedia: React.FC<{
       playsInline
       onClick={onUnlockAudio}
       className="h-full w-full object-cover"
+      style={{ transform: 'none' }}
+    />
+  );
+};
+
+const GroupLocalMedia: React.FC<{
+  stream: MediaStream;
+  onUnlockAudio: () => void;
+}> = ({ stream, onUnlockAudio }) => {
+  const mediaRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const mediaElement = mediaRef.current;
+    if (!mediaElement) return;
+    if (mediaElement.srcObject !== stream) mediaElement.srcObject = stream;
+    void mediaElement.play().catch(onUnlockAudio);
+  }, [stream, onUnlockAudio]);
+
+  return (
+    <video
+      ref={mediaRef}
+      autoPlay
+      playsInline
+      muted
+      className="h-full min-h-[190px] w-full object-cover"
+      style={{ transform: 'scaleX(-1)' }}
     />
   );
 };
@@ -244,7 +274,9 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
 
   const attachRemoteStream = (userId: string, stream: MediaStream) => {
     remoteStreamsRef.current.set(userId, stream);
-    setRemoteStreams((previous) => ({ ...previous, [userId]: new MediaStream(stream.getTracks()) }));
+    // Keep one MediaStream identity per peer. Cloning it on every track event
+    // forces the video element to reload and creates visible flicker.
+    setRemoteStreams((previous) => (previous[userId] === stream ? previous : { ...previous, [userId]: stream }));
     setConnectionStatus('connected');
   };
 
@@ -404,6 +436,26 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
   useEffect(() => {
     if (!callState.active || callState.direction !== 'connected') return;
     void ensureJoinedPeers();
+    const activePeerIds = new Set(joinedParticipants.map((participant) => participant.user.id));
+    peerConnectionsRef.current.forEach((peerConnection, peerUserId) => {
+      if (activePeerIds.has(peerUserId)) return;
+      peerConnection.close();
+      peerConnectionsRef.current.delete(peerUserId);
+      remoteStreamsRef.current.delete(peerUserId);
+      pendingIceRef.current.delete(peerUserId);
+      offersSentRef.current.delete(peerUserId);
+      setConnectionStates((previous) => {
+        const next = { ...previous };
+        delete next[peerUserId];
+        return next;
+      });
+      setRemoteStreams((previous) => {
+        if (!previous[peerUserId]) return previous;
+        const next = { ...previous };
+        delete next[peerUserId];
+        return next;
+      });
+    });
     // New participants are the only dependency needed here; their stream refs
     // stay stable while the call is active.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -461,18 +513,19 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
     };
   }, []);
 
+  const unlockAudio = useCallback(() => {
+    const mediaElements = Array.from(document.querySelectorAll('audio, video')) as HTMLMediaElement[];
+    void Promise.all(mediaElements.map((element) => element.play().catch(() => undefined))).then(() => {
+      setNeedsAudioUnlock(false);
+    });
+  }, []);
+
   if (!callState.active) return null;
 
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainder = seconds % 60;
     return `${minutes < 10 ? '0' : ''}${minutes}:${remainder < 10 ? '0' : ''}${remainder}`;
-  };
-  const unlockAudio = () => {
-    const mediaElements = Array.from(document.querySelectorAll('audio, video')) as HTMLMediaElement[];
-    void Promise.all(mediaElements.map((element) => element.play().catch(() => undefined))).then(() => {
-      setNeedsAudioUnlock(false);
-    });
   };
   const isIncoming = callState.direction === 'incoming';
   const connectedCount = callState.participants.filter((participant) => participant.joined).length;
@@ -530,7 +583,7 @@ export const GroupCallManager: React.FC<GroupCallManagerProps> = ({
         <div className={`mx-auto grid h-full w-full max-w-6xl content-center gap-3 ${joinedParticipants.length + 1 <= 2 ? 'grid-cols-1 sm:grid-cols-2' : joinedParticipants.length + 1 <= 4 ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-3'}`}>
           <div className="relative min-h-[190px] overflow-hidden rounded-3xl border-2 border-[#FF82AE] bg-[#4C3441] shadow-2xl">
             {callState.type === 'video' && localStream?.getVideoTracks().length && !callState.isVideoOff ? (
-              <video ref={(element) => { if (element && localStream) { element.srcObject = localStream; element.play().catch(() => undefined); } }} autoPlay playsInline muted className="h-full min-h-[190px] w-full object-cover" />
+              <GroupLocalMedia stream={localStream} onUnlockAudio={unlockAudio} />
             ) : (
               <div className="flex h-full min-h-[190px] flex-col items-center justify-center p-4 text-center">
                 <div className="relative mb-2"><img src={currentUser.avatar || '/src/assets/images/bunny_calling_avatar_1791670258938.jpg'} alt={currentUser.name} className="h-20 w-20 rounded-full border-2 border-[#FF82AE] object-cover" /><span className="absolute -bottom-1 -right-1 rounded-full bg-[#FF4F8B] p-1.5 text-xs text-white">{callState.isMuted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}</span></div>

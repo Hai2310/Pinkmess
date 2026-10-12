@@ -9,6 +9,7 @@ import { NotificationsView } from './components/notifications/NotificationsView'
 import { CallManager } from './components/calls/CallManager';
 import { GroupCallManager, GroupWebRTCSignal } from './components/calls/GroupCallManager';
 import { NewChatModal } from './components/chat/NewChatModal';
+import { AddGroupMembersModal } from './components/chat/AddGroupMembersModal';
 import { CustomStickerModal } from './components/stickers/CustomStickerModal';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { AuthModal } from './components/auth/AuthModal';
@@ -44,6 +45,7 @@ export default function App() {
 
   // Modals state
   const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [showAddGroupMembersModal, setShowAddGroupMembersModal] = useState(false);
   const [newChatInitialType, setNewChatInitialType] = useState<'direct' | 'group'>('direct');
   const [showCustomStickerModal, setShowCustomStickerModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -325,6 +327,8 @@ export default function App() {
                       ? `📎 ${newMsg.attachments?.[0]?.name || 'Tệp đính kèm'}`
                       : newMsg.type === 'LOCATION'
                       ? '📍 Đã chia sẻ vị trí'
+                      : newMsg.type === 'SYSTEM' && newMsg.callId
+                      ? '📞 Đang có cuộc gọi nhóm — chạm để tham gia'
                       : newMsg.content,
                   type: newMsg.type,
                   senderName: newMsg.senderName,
@@ -970,11 +974,51 @@ export default function App() {
 
   const handleAcceptGroupCall = () => {
     if (!groupCallState.callId || !groupCallState.conversationId) return;
+    setGroupCallState((previous) => ({ ...previous, direction: 'joining' }));
     getSocket().emit('group-call:join', {
       callId: groupCallState.callId,
       conversationId: groupCallState.conversationId
     });
-    setGroupCallState((previous) => ({ ...previous, direction: 'connected' }));
+  };
+
+  const handleJoinGroupCallFromMessage = (message: Message) => {
+    if (!currentUser || !message.callId || !message.conversationId) return;
+    if (groupCallState.active && groupCallState.callId !== message.callId) {
+      window.alert('Bạn đang ở một cuộc gọi nhóm khác. Hãy rời cuộc gọi hiện tại trước nhé.');
+      return;
+    }
+
+    const conversation = conversations.find((item) => item.id === message.conversationId);
+    const participantIds = message.callParticipantIds?.length
+      ? message.callParticipantIds
+      : conversation?.participants || [];
+    const participants = participantIds
+      .map((userId) => users.find((user) => user.id === userId) || (userId === currentUser.id ? currentUser : null))
+      .filter(Boolean) as User[];
+    if (!participants.some((user) => user.id === currentUser.id)) participants.push(currentUser);
+
+    setGroupCallState({
+      active: true,
+      callId: message.callId,
+      conversationId: message.conversationId,
+      type: message.callType === 'video' ? 'video' : 'audio',
+      direction: 'joining',
+      hostUserId: message.callHostUserId || message.senderId,
+      participants: participants.map((user) => ({
+        user,
+        isMuted: false,
+        isVideoOff: false,
+        joined: user.id === (message.callHostUserId || message.senderId)
+      })),
+      isMuted: false,
+      isVideoOff: false,
+      isScreenSharing: false,
+      duration: 0
+    });
+    getSocket().emit('group-call:join', {
+      callId: message.callId,
+      conversationId: message.conversationId
+    });
   };
 
   const handleRejectGroupCall = () => {
@@ -1113,6 +1157,30 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: currentUser.id, ...updates })
     }).catch((error) => console.warn('Could not update conversation settings:', error));
+  };
+
+  const handleAddGroupMembers = async (userIds: string[]) => {
+    if (!currentUser || !activeConversationId) return;
+    const conversation = conversations.find((item) => item.id === activeConversationId);
+    if (!conversation || conversation.type !== 'group') return;
+    const participants = [...new Set([...conversation.participants, ...userIds])];
+    if (participants.length > 6) {
+      window.alert('Nhóm Pinkmess tối đa 6 thành viên để chat và gọi mượt nhất nhé.');
+      return;
+    }
+    const response = await fetch(`/api/conversations/${conversation.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, participants })
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      window.alert(payload.error || 'Chưa thể thêm thành viên vào nhóm lúc này.');
+      return;
+    }
+    const updatedConversation = await response.json();
+    setConversations((previous) => previous.map((item) => item.id === updatedConversation.id ? updatedConversation : item));
+    setShowAddGroupMembersModal(false);
   };
 
   const handleForwardMessage = (message: Message, targetConversationId: string) => {
@@ -1272,6 +1340,8 @@ export default function App() {
                   setNewChatInitialType('group');
                   setShowNewChatModal(true);
                 }}
+                onAddGroupMembers={() => setShowAddGroupMembersModal(true)}
+                onJoinGroupCall={handleJoinGroupCallFromMessage}
                 onForwardMessage={handleForwardMessage}
               />
             </div>
@@ -1395,6 +1465,16 @@ export default function App() {
           initialChatType={newChatInitialType}
           onClose={() => setShowNewChatModal(false)}
           onCreateConversation={handleCreateConversation}
+        />
+      )}
+
+      {showAddGroupMembersModal && activeConversation?.type === 'group' && (
+        <AddGroupMembersModal
+          users={users}
+          currentUserId={currentUser.id}
+          existingMemberIds={activeConversation.participants}
+          onClose={() => setShowAddGroupMembersModal(false)}
+          onAddMembers={handleAddGroupMembers}
         />
       )}
 

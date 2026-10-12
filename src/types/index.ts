@@ -64,6 +64,11 @@ export interface Message {
   locationRequestId?: string;
   audioDuration?: number;
   audioMimeType?: string;
+  callId?: string;
+  callType?: 'audio' | 'video';
+  callHostUserId?: string;
+  callParticipantIds?: string[];
+  callStatus?: 'active' | 'ended';
   attachments?: Attachment[];
   reactions?: Record<string, string[]>; // emoji -> array of userIds
   replyToId?: string;
@@ -159,7 +164,7 @@ export interface GroupCallState {
   callId: string | null;
   conversationId: string | null;
   type: 'audio' | 'video';
-  direction: 'incoming' | 'connected';
+  direction: 'incoming' | 'joining' | 'connected';
   hostUserId: string | null;
   participants: GroupCallParticipant[];
   isMuted: boolean;

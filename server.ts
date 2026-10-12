@@ -302,6 +302,11 @@ interface ServerMessage {
   locationRequestId?: string;
   audioDuration?: number;
   audioMimeType?: string;
+  callId?: string;
+  callType?: 'audio' | 'video';
+  callHostUserId?: string;
+  callParticipantIds?: string[];
+  callStatus?: 'active' | 'ended';
   attachments?: any[];
   reactions?: Record<string, any>;
   replyToId?: string;
@@ -839,7 +844,9 @@ async function startServer() {
     const subscriptions = db.pushSubscriptions.filter((record) => recipientIds.includes(record.userId));
     if (subscriptions.length === 0) return;
 
-    const body = message.type === 'IMAGE'
+    const body = message.callId
+      ? `📞 ${message.senderName} đang mở cuộc gọi nhóm ${message.callType === 'video' ? 'video' : 'thoại'} — chạm để tham gia`
+      : message.type === 'IMAGE'
       ? '🖼️ Gửi bạn một tấm ảnh dễ thương'
       : message.type === 'STICKER' || message.type === 'GIF'
       ? '🐰 Gửi bạn một sticker đáng yêu'
@@ -852,7 +859,7 @@ async function startServer() {
         await webpush.sendNotification(
           record.subscription,
           JSON.stringify({
-            title: `${message.senderName} đang nhắn nè 💌`,
+            title: message.callId ? '📞 Cuộc gọi nhóm Pinkmess' : `${message.senderName} đang nhắn nè 💌`,
             body,
             icon: '/assets/pinkmess-iphone-wallpaper.png',
             badge: '/assets/pinkmess-iphone-wallpaper.png',
@@ -930,6 +937,15 @@ async function startServer() {
       .filter(Boolean)
       .map((user) => toPublicUser(user));
 
+  const markGroupCallMessageEnded = (callId: string) => {
+    const callMessage = db.messages.find((message) => message.callId === callId);
+    if (!callMessage || callMessage.callStatus === 'ended') return;
+    callMessage.callStatus = 'ended';
+    callMessage.content = 'Cuộc gọi nhóm đã kết thúc.';
+    saveDb();
+    emitToConversation(callMessage.conversationId, 'message:updated', callMessage);
+  };
+
   const removeUserFromGroupCalls = (userId: string) => {
     activeGroupCalls.forEach((groupCall, callId) => {
       if (!groupCall.participants.has(userId)) return;
@@ -938,6 +954,7 @@ async function startServer() {
         groupCall.participants.forEach((participantId) => {
           if (participantId !== userId) emitToUser(participantId, 'group-call:ended', { callId, endedBy: userId });
         });
+        markGroupCallMessageEnded(callId);
         activeGroupCalls.delete(callId);
         return;
       }
@@ -1490,6 +1507,45 @@ async function startServer() {
         .filter(Boolean)
         .map((user) => toPublicUser(user));
       const host = db.users.find((user) => user.id === hostUserId);
+
+      // Persist an actionable call card in the group conversation. Members
+      // who miss the realtime invite can still open the chat and join while
+      // the room is alive.
+      const conversationMessage = db.conversations.find((item) => item.id === conversationId);
+      const callMessage: ServerMessage = {
+        id: `msg_group_call_${callId}`,
+        conversationId,
+        senderId: hostUserId,
+        senderName: host?.name || 'Bạn Pinkmess',
+        senderAvatar: host?.avatar || '',
+        type: 'SYSTEM',
+        content: `${host?.name || 'Một bạn'} đang mở cuộc gọi nhóm ${groupCall.type === 'video' ? 'video' : 'thoại'} 💕`,
+        callId,
+        callType: groupCall.type,
+        callHostUserId: hostUserId,
+        callParticipantIds: participantIds,
+        callStatus: 'active',
+        reactions: {},
+        createdAt: new Date().toISOString(),
+        readBy: [hostUserId]
+      };
+      db.messages.push(callMessage);
+      if (conversationMessage) {
+        conversationMessage.updatedAt = callMessage.createdAt;
+        conversationMessage.lastMessage = {
+          text: '📞 Đang có cuộc gọi nhóm — chạm để tham gia',
+          type: 'SYSTEM',
+          senderName: callMessage.senderName,
+          timestamp: callMessage.createdAt
+        };
+      }
+      saveDb();
+      emitToConversation(conversationId, 'message:new', callMessage, socket.id);
+      socket.emit('message:new', callMessage);
+      emitToConversation(conversationId, 'conversation:updated', conversationMessage, socket.id);
+      if (conversationMessage) socket.emit('conversation:updated', toPublicConversation(conversationMessage, hostUserId));
+      void sendMessagePushNotifications(callMessage);
+
       participantIds.filter((userId) => userId !== hostUserId).forEach((targetUserId) => {
         if (!userToSockets.has(targetUserId)) return;
         emitToUser(targetUserId, 'group-call:incoming', {
@@ -1561,6 +1617,7 @@ async function startServer() {
         groupCall.participants.forEach((participantId) => {
           if (participantId !== userId) emitToUser(participantId, 'group-call:ended', { callId, endedBy: userId });
         });
+        markGroupCallMessageEnded(callId);
         activeGroupCalls.delete(callId);
         return;
       }
@@ -1578,6 +1635,7 @@ async function startServer() {
       groupCall.participants.forEach((participantId) => {
         if (participantId !== userId) emitToUser(participantId, 'group-call:ended', { callId, endedBy: userId });
       });
+      markGroupCallMessageEnded(callId);
       activeGroupCalls.delete(callId);
     });
 
@@ -1986,6 +2044,9 @@ async function startServer() {
     }
     const validParticipants = [...new Set(requestedParticipants)].filter((id) => db.users.some((user) => user.id === id));
     if (validParticipants.length < 2) return res.status(400).json({ error: 'Hãy chọn ít nhất một người dùng khác.' });
+    if (type === 'group' && validParticipants.length > 6) {
+      return res.status(400).json({ error: 'Nhóm Pinkmess tối đa 6 thành viên để gọi nhóm mượt nhất.' });
+    }
     if (type === 'direct' && validParticipants.length === 2) {
       const existing = db.conversations.find(
         (conversation) =>
@@ -2020,6 +2081,19 @@ async function startServer() {
     if (!conv.participants.includes(userId)) return res.status(403).json({ error: 'Bạn không thuộc cuộc trò chuyện này.' });
     const updates = { ...(req.body || {}) };
     delete updates.userId;
+    if (updates.participants !== undefined) {
+      if (conv.type !== 'group' || !Array.isArray(updates.participants)) {
+        return res.status(400).json({ error: 'Chỉ có thể thêm thành viên cho nhóm chat.' });
+      }
+      const nextParticipants = [...new Set(updates.participants.filter((id: unknown) => typeof id === 'string'))];
+      if (!nextParticipants.includes(userId)) {
+        return res.status(403).json({ error: 'Bạn phải là thành viên của nhóm.' });
+      }
+      if (nextParticipants.length < 2 || nextParticipants.length > 6 || nextParticipants.some((id) => !db.users.some((user) => user.id === id))) {
+        return res.status(400).json({ error: 'Nhóm Pinkmess chỉ hỗ trợ từ 2 đến 6 thành viên.' });
+      }
+      updates.participants = nextParticipants;
+    }
     if (typeof updates.wallpaper === 'string') updates.wallpaper = updates.wallpaper.slice(0, 5500000);
     Object.assign(conv, updates);
     saveDb();

@@ -60,6 +60,8 @@ interface ChatWindowProps {
   availableConversations: Conversation[];
   onUpdateConversation: (updates: Partial<Conversation>) => void;
   onCreateGroupChat: () => void;
+  onAddGroupMembers: () => void;
+  onJoinGroupCall: (message: Message) => void;
   onForwardMessage: (message: Message, targetConversationId: string) => void;
 }
 
@@ -88,6 +90,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   availableConversations,
   onUpdateConversation,
   onCreateGroupChat,
+  onAddGroupMembers,
+  onJoinGroupCall,
   onForwardMessage
 }) => {
   const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
@@ -464,6 +468,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </div>
               </section>
 
+              {conversation.type === 'group' && (
+                <section className="rounded-3xl border border-[#FFD6E5] bg-white p-3 shadow-sm">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-black text-[#4C3441]">
+                    <Users className="h-4 w-4 text-[#FF4F8B]" /> Thành viên nhóm
+                  </div>
+                  <p className="mb-2 text-[11px] leading-relaxed text-[#927D8A]">
+                    Nhóm tối đa 6 người để chat và gọi nhóm ổn định, latency thấp hơn.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={conversation.participants.length >= 6}
+                    onClick={onAddGroupMembers}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#FFB1CA] bg-[#FFF8FB] px-3 py-2.5 text-xs font-bold text-[#FF4F8B] hover:bg-[#FFF0F6] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Users className="h-4 w-4" />
+                    {conversation.participants.length >= 6 ? 'Nhóm đã đủ 6 thành viên' : 'Thêm thành viên'}
+                  </button>
+                </section>
+              )}
+
               <section className="rounded-3xl border border-[#FFD6E5] bg-white p-3 shadow-sm">
                 <div className="mb-2 flex items-center gap-2 text-xs font-black text-[#4C3441]">
                   <Sparkles className="h-4 w-4 text-[#FF4F8B]" /> {conversation.type === 'group' ? 'Tên nhóm' : 'Biệt danh'}
@@ -727,8 +751,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       openMessageActions(msg);
                     }}
                   >
-                    {/* 1. STICKER TYPE */}
-                    {msg.type === 'STICKER' ? (
+                    {/* 1. GROUP CALL SYSTEM MESSAGE */}
+                    {msg.type === 'SYSTEM' && msg.callId ? (
+                      <div className="min-w-[250px] rounded-3xl border border-[#FFB1CA] bg-gradient-to-br from-[#FFF0F6] to-white p-3 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#FF82AE] text-xl text-white shadow-sm">📞</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-black text-[#4C3441]">Cuộc gọi nhóm Pinkmess</div>
+                            <div className="mt-1 text-[11px] leading-relaxed text-[#927D8A]">
+                              {msg.callStatus === 'ended' ? 'Cuộc gọi đã kết thúc.' : `${msg.senderName} đang gọi ${msg.callType === 'video' ? 'video' : 'thoại'} nhóm · ${msg.callParticipantIds?.length || conversation.participants.length} người`}
+                            </div>
+                            {msg.callStatus !== 'ended' && (
+                              <button
+                                type="button"
+                                onClick={() => onJoinGroupCall(msg)}
+                                className="mt-2 rounded-2xl bg-gradient-to-r from-[#FF82AE] to-[#FF4F8B] px-3 py-2 text-xs font-black text-white shadow-md shadow-[#FF82AE]/25 transition-transform active:scale-95"
+                              >
+                                Tham gia cuộc gọi 💕
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : msg.type === 'SYSTEM' ? (
+                      <div className="rounded-2xl border border-[#F7DDE8] bg-white/80 px-4 py-2 text-xs text-[#927D8A] shadow-2xs">{msg.content}</div>
+                    ) : msg.type === 'STICKER' ? (
                       <div className="p-2 transition-transform hover:scale-105 duration-200 cursor-pointer">
                         {/* Find SVG from packs or render directly */}
                         {(() => {

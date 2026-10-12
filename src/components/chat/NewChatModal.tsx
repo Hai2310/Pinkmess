@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, Users, MessageSquare, Check, Sparkles } from 'lucide-react';
 import { User } from '../../types';
 
+const MAX_GROUP_MEMBERS = 6;
+
 interface NewChatModalProps {
   users: User[];
   currentUserId: string;
@@ -40,6 +42,8 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
     } else {
       if (selectedUserIds.includes(id)) {
         setSelectedUserIds(selectedUserIds.filter((uid) => uid !== id));
+      } else if (selectedUserIds.length >= MAX_GROUP_MEMBERS - 1) {
+        window.alert(`Nhóm Pinkmess tối đa ${MAX_GROUP_MEMBERS} người, tính cả bạn nhé 💕`);
       } else {
         setSelectedUserIds([...selectedUserIds, id]);
       }
@@ -127,7 +131,9 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
         {/* Select users */}
         <div className="flex-1 overflow-y-auto space-y-2 py-1">
           <label className="block text-xs font-bold text-[#4C3441] mb-1">
-            {chatType === 'direct' ? 'Chọn người bạn muốn nhắn:' : 'Chọn thành viên nhóm:'}
+            {chatType === 'direct'
+              ? 'Chọn người bạn muốn nhắn:'
+              : `Chọn thành viên nhóm: ${selectedUserIds.length + 1}/${MAX_GROUP_MEMBERS}`}
           </label>
           {displayedUsers.length === 0 ? (
             <p className="text-xs text-[#927D8A] text-center py-4">Không tìm thấy người dùng phù hợp</p>
@@ -141,6 +147,8 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
                   className={`flex items-center justify-between p-2.5 rounded-2xl border cursor-pointer transition-all ${
                     isSelected
                       ? 'border-[#FF82AE] bg-[#FFE4F0]'
+                      : selectedUserIds.length >= MAX_GROUP_MEMBERS - 1 && chatType === 'group'
+                      ? 'border-[#F7DDE8] cursor-not-allowed opacity-50'
                       : 'border-[#F7DDE8] hover:bg-[#FFF0F6]'
                   }`}
                 >
