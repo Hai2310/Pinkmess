@@ -25,6 +25,12 @@ Trong Google Cloud Console, thêm đúng redirect URI:
 
 Trên Render, đặt ba biến môi trường `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` và `GOOGLE_REDIRECT_URI`. Không commit file `.env` hoặc secret Google vào GitHub.
 
+## Lưu dữ liệu bền vững trên Render
+
+Pinkmess lưu tài khoản, cuộc trò chuyện, tin nhắn, sticker tự tạo và cuộc gọi nhỡ vào PostgreSQL qua biến `DATABASE_URL`. `render.yaml` đã khai báo database `pinkmess-db` và tự nối `DATABASE_URL` cho web service. Nếu Render đã có database riêng, chỉ cần đặt `DATABASE_URL` của database đó trong Environment.
+
+Không dùng file JSON trong thư mục `data` làm nơi lưu production: filesystem mặc định của Render là tạm thời và dữ liệu sẽ mất sau deploy/restart. Database Render Free hiện có giới hạn thời gian sử dụng, nên hãy nâng database lên gói trả phí trước khi hết hạn nếu muốn giữ dữ liệu lâu dài.
+
 ## Cloudflare Realtime TURN
 
 Pinkmess dùng Cloudflare Realtime TURN cho mạng di động/NAT khó, nhưng vẫn ưu tiên kết nối WebRTC trực tiếp để giảm latency. Chỉ đặt hai biến này ở server/Render, không đặt tiền tố `VITE_` và không đưa API token vào frontend:
