@@ -257,7 +257,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     window.alert('Đã lưu cài đặt cuộc trò chuyện 🌸');
   };
 
-  const handleAudioToggle = (msgId: string, audioData: string) => {
+  const handleAudioToggle = (msgId: string, audioData: string, audioMimeType?: string) => {
     if (playingAudioId === msgId) {
       audioPlayerRef.current?.pause();
       setPlayingAudioId(null);
@@ -265,10 +265,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       if (audioPlayerRef.current) {
         audioPlayerRef.current.pause();
       }
-      const audio = new Audio(audioData.startsWith('data:') ? audioData : undefined);
+      const rawAudio = String(audioData || '').trim();
+      if (!rawAudio) return;
+      const mimeType = audioMimeType?.startsWith('audio/') ? audioMimeType : 'audio/webm';
+      const audioSource = rawAudio.startsWith('data:') || rawAudio.startsWith('blob:') || rawAudio.startsWith('http')
+        ? rawAudio
+        : `data:${mimeType};base64,${rawAudio}`;
+      const audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = audioSource;
+      audio.setAttribute('playsinline', 'true');
       audioPlayerRef.current = audio;
       audio.onended = () => setPlayingAudioId(null);
-      audio.play().catch(() => {});
+      audio.onerror = () => setPlayingAudioId(null);
+      void audio.play().catch(() => setPlayingAudioId(null));
       setPlayingAudioId(msgId);
     }
   };
@@ -781,7 +791,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         }`}
                       >
                         <button
-                          onClick={() => handleAudioToggle(msg.id, msg.content)}
+                          onClick={() => handleAudioToggle(msg.id, msg.content, msg.audioMimeType)}
                           className={`w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-95 ${
                             isMe ? 'bg-white text-[#FF4F8B]' : 'bg-[#FFF0F6] text-[#FF82AE]'
                           }`}
