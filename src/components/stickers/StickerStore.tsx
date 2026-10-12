@@ -36,6 +36,7 @@ export const StickerStore: React.FC<StickerStoreProps> = ({
   const githubPacks = importedPacks.filter((pack) => pack.collectionId === 'pinkmess-github');
   const githubStickerCount = githubPacks.reduce((total, pack) => total + pack.stickers.length, 0);
   const hazenPacks = importedPacks.filter((pack) => pack.collectionId === 'hazen-source');
+  const memePacks = importedPacks.filter((pack) => pack.collectionId === 'pinkmess-meme-30');
 
   const collections = [
     { id: 'all', label: '🌸 Tất cả kho', count: importedPacks.length },
@@ -44,6 +45,7 @@ export const StickerStore: React.FC<StickerStoreProps> = ({
     { id: 'hustmess-people', label: '🌷 Cute People', count: importedPacks.filter((p) => p.collectionId === 'hustmess-people').length },
     { id: 'pinkmess-funny', label: '🤣 Funny Originals', count: importedPacks.filter((p) => p.collectionId === 'pinkmess-funny').length },
     { id: 'hazen-source', label: '🥚 Hazen Tấu Hài', count: hazenPacks.length },
+    { id: 'pinkmess-meme-30', label: '🤣 Meme · Mèo · Hamster', count: memePacks.length },
     { id: 'local', label: '✨ Pinkmess Originals', count: packs.filter((p) => !p.collectionId).length }
   ];
 
@@ -65,7 +67,16 @@ export const StickerStore: React.FC<StickerStoreProps> = ({
     { id: 'girl', label: '👧 Cô gái chibi' },
     { id: 'boy', label: '👦 Chàng trai chibi' },
     { id: 'couple', label: '💞 Cặp đôi' },
-    { id: 'baby', label: '🍼 Em bé' }
+    { id: 'baby', label: '🍼 Em bé' },
+    { id: 'hazen', label: '🥚 Hazen' },
+    { id: 'meme-photo', label: '📸 Meme ảnh' },
+    { id: 'hamster', label: '🐹 Hamster' },
+    { id: 'cat', label: '🐱 Mèo meme' },
+    { id: 'dog', label: '🐶 Cún Shiba' },
+    { id: 'frog', label: '🐸 Ếch bựa' },
+    { id: 'duck', label: '🦆 Vịt ngáo' },
+    { id: 'capybara', label: '🦫 Capybara' },
+    { id: 'panda', label: '🐼 Panda' }
   ];
 
   const filteredPacks = packs.filter((p) => {

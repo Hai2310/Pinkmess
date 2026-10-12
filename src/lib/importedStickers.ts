@@ -22,38 +22,52 @@ type ImportedPack = {
 };
 
 type ImportedManifest = {
-  collectionId: string;
-  name: string;
-  description: string;
+  collectionId?: string;
+  id?: string;
+  name?: string;
+  collectionName?: string;
+  description?: string;
   assetBasePath?: string;
+  baseUrl?: string;
   packs: ImportedPack[];
 };
 
 const collections = [
   {
+    collectionId: 'hustmess-bunny',
     manifestUrl: '/stickers/hustmess-bunny/manifest.json',
     assetRoot: '/stickers/hustmess-bunny',
     author: 'Pinkmess Bunny'
   },
   {
+    collectionId: 'hustmess-people',
     manifestUrl: '/stickers/hustmess-people/manifest.json',
     assetRoot: '/stickers/hustmess-people',
     author: 'Pinkmess Cute People'
   },
   {
+    collectionId: 'pinkmess-funny',
     manifestUrl: '/stickers/pinkmess-funny/manifest.json',
     assetRoot: '/stickers/pinkmess-funny',
     author: 'Pinkmess Original'
   },
   {
+    collectionId: 'pinkmess-github',
     manifestUrl: '/stickers/pinkmess-github/manifest.json',
     assetRoot: '/stickers/pinkmess-github',
     author: 'GitHub Open Assets'
   },
   {
+    collectionId: 'hazen-source',
     manifestUrl: '/stickers/hazen-source/manifest.json',
     assetRoot: '/stickers/hazen-source',
     author: 'Pinkmess Hazen'
+  },
+  {
+    collectionId: 'pinkmess-meme-30',
+    manifestUrl: '/stickers/pinkmess-meme-30/manifest.json',
+    assetRoot: '/stickers/pinkmess-meme-30',
+    author: 'Pinkmess Meme Originals'
   }
 ] as const;
 
@@ -81,12 +95,14 @@ export async function loadImportedStickerPacks(): Promise<StickerPack[]> {
     }
 
     const { collection, manifest } = result.value;
-    const assetRoot = (manifest.assetBasePath || collection.assetRoot).replace(/\/$/, '');
+    const collectionId = manifest.collectionId || collection.collectionId;
+    const collectionName = manifest.name || manifest.collectionName || collectionId;
+    const assetRoot = (manifest.assetBasePath || manifest.baseUrl || collection.assetRoot).replace(/\/$/, '');
 
     return manifest.packs.map((pack) => {
-      const packId = `${manifest.collectionId}_${pack.id}`;
+      const packId = `${collectionId}_${pack.id}`;
       const stickers = pack.stickers.map((sticker, index) => ({
-        id: `${manifest.collectionId}_${sticker.id}`,
+        id: `${collectionId}_${sticker.id}`,
         packId,
         name: sticker.name,
         keywords: toKeywords(sticker, pack),
@@ -100,8 +116,8 @@ export async function loadImportedStickerPacks(): Promise<StickerPack[]> {
       return {
         id: packId,
         name: pack.displayName || pack.name,
-        slug: `${manifest.collectionId}-${pack.id}`,
-        description: `${manifest.description} · ${pack.name}`,
+        slug: `${collectionId}-${pack.id}`,
+        description: `${manifest.description || collectionName} · ${pack.name}`,
         coverSvg: '',
         coverImage: `${assetRoot}/${pack.cover}`,
         category: pack.category || 'Bộ sưu tập',
@@ -109,8 +125,8 @@ export async function loadImportedStickerPacks(): Promise<StickerPack[]> {
         stickersCount: stickers.length,
         isOfficial: true,
         isAnimated: Boolean(pack.animated),
-        collectionId: manifest.collectionId,
-        collectionName: manifest.name,
+        collectionId,
+        collectionName,
         createdAt: new Date().toISOString(),
         stickers
       };
