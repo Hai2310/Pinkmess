@@ -147,6 +147,27 @@ export interface CallState {
   roomId?: string;
 }
 
+export interface GroupCallParticipant {
+  user: User;
+  isMuted: boolean;
+  isVideoOff: boolean;
+  joined: boolean;
+}
+
+export interface GroupCallState {
+  active: boolean;
+  callId: string | null;
+  conversationId: string | null;
+  type: 'audio' | 'video';
+  direction: 'incoming' | 'connected';
+  hostUserId: string | null;
+  participants: GroupCallParticipant[];
+  isMuted: boolean;
+  isVideoOff: boolean;
+  isScreenSharing: boolean;
+  duration: number;
+}
+
 export interface MissedCallRequest {
   id: string;
   callId: string;
