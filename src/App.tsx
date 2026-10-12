@@ -879,6 +879,7 @@ export default function App() {
       isAnimatedSticker: message.isAnimatedSticker,
       fontFamily: message.fontFamily,
       audioDuration: message.audioDuration,
+      audioMimeType: message.audioMimeType,
       attachments: message.attachments
     });
   };
