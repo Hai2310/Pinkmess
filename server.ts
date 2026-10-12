@@ -287,6 +287,7 @@ interface ServerMessage {
   locationMapUrl?: string;
   locationRequestId?: string;
   audioDuration?: number;
+  audioMimeType?: string;
   attachments?: any[];
   reactions?: Record<string, any>;
   replyToId?: string;
@@ -863,6 +864,9 @@ async function startServer() {
           ? locationRequestId.slice(0, 120)
           : undefined,
         audioDuration: messagePayload.audioDuration,
+        audioMimeType: typeof messagePayload.audioMimeType === 'string'
+          ? messagePayload.audioMimeType.slice(0, 80)
+          : undefined,
         attachments: messagePayload.attachments,
         reactions: {},
         replyToId: messagePayload.replyToId,
