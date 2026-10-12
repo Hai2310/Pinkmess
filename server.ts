@@ -27,6 +27,8 @@ const databasePool = DATABASE_URL
     })
   : null;
 const DATABASE_TABLE = 'pinkmess_app_state';
+const SESSION_COOKIE = 'pinkmess_session';
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 const LEGACY_DEMO_USER_IDS = new Set(['user_bunny', 'user_linh', 'user_hoa', 'user_nam']);
 const LEGACY_DEMO_CONVERSATION_IDS = new Set(['conv_bunny_linh', 'conv_group_cute', 'conv_bunny_nam']);
@@ -356,6 +358,13 @@ interface ServerLocationSession {
   lastLocations: Record<string, ServerLocationPoint>;
 }
 
+interface PersistentSession {
+  id: string;
+  userId: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 interface Database {
   users: Array<(typeof initialUsers)[number] & { passwordHash?: string }>;
   conversations: ServerConversation[];
@@ -364,6 +373,7 @@ interface Database {
   pushSubscriptions: Array<{ userId: string; subscription: any; updatedAt: string }>;
   callRequests: ServerCallRequest[];
   locationSessions: ServerLocationSession[];
+  sessions: PersistentSession[];
 }
 
 let db: Database = {
@@ -373,7 +383,8 @@ let db: Database = {
   customPacks: [],
   pushSubscriptions: [],
   callRequests: [],
-  locationSessions: []
+  locationSessions: [],
+  sessions: []
 };
 
 let databaseReady = false;
@@ -430,6 +441,16 @@ function removeLegacyDemoData(raw: Partial<Database>): Database {
             userIds.has(item?.targetUserId) &&
             item.requesterId !== item.targetUserId
         )
+      : [],
+    sessions: Array.isArray(raw.sessions)
+      ? raw.sessions.filter(
+          (session: any) =>
+            session?.id &&
+            userIds.has(session?.userId) &&
+            session?.createdAt &&
+            session?.expiresAt &&
+            Date.parse(session.expiresAt) > Date.now()
+        )
       : []
   };
 }
@@ -468,7 +489,12 @@ function saveDb() {
   // Keep a local copy for development and as a migration source. Render's
   // default filesystem is ephemeral, so the durable copy is PostgreSQL below.
   writeLocalDb();
-  if (!databasePool || !databaseReady) return;
+  if (!databasePool || !databaseReady) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[DB] Refusing to persist production data without a ready PostgreSQL database.');
+    }
+    return;
+  }
 
   if (databaseSaveTimer) clearTimeout(databaseSaveTimer);
   databaseSaveTimer = setTimeout(() => {
@@ -519,7 +545,9 @@ function loadLocalDatabase() {
 async function loadPersistentDatabase() {
   loadLocalDatabase();
   if (!databasePool) {
-    console.warn('[DB] DATABASE_URL is not configured; using local filesystem only. Data will not survive a Render restart.');
+    const message = '[DB] DATABASE_URL is not configured. Production cannot safely start because Render filesystem storage is temporary.';
+    if (process.env.NODE_ENV === 'production') throw new Error(message);
+    console.warn(`${message} Using local filesystem for development.`);
     return;
   }
 
@@ -545,8 +573,55 @@ async function loadPersistentDatabase() {
     databaseReady = true;
   } catch (error) {
     databaseReady = false;
-    console.error('[DB] PostgreSQL is unavailable; falling back to local snapshot.', error);
+    console.error('[DB] PostgreSQL is unavailable.', error);
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('PostgreSQL is unavailable. The production server was stopped to prevent data loss.');
+    }
   }
+}
+
+function createSession(userId: string) {
+  const now = Date.now();
+  db.sessions = (db.sessions || []).filter((session) => Date.parse(session.expiresAt) > now);
+  const session: PersistentSession = {
+    id: randomBytes(32).toString('hex'),
+    userId,
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + SESSION_MAX_AGE_SECONDS * 1000).toISOString()
+  };
+  db.sessions.push(session);
+  return session;
+}
+
+function setSessionCookie(req: express.Request, res: express.Response, sessionId: string) {
+  const secure = process.env.NODE_ENV === 'production' || req.secure;
+  const existing = res.getHeader('Set-Cookie');
+  const cookies = Array.isArray(existing) ? existing.map(String) : existing ? [String(existing)] : [];
+  cookies.push(
+    `${SESSION_COOKIE}=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}${secure ? '; Secure' : ''}`
+  );
+  res.setHeader('Set-Cookie', cookies);
+}
+
+function clearSessionCookie(req: express.Request, res: express.Response) {
+  const secure = process.env.NODE_ENV === 'production' || req.secure;
+  const existing = res.getHeader('Set-Cookie');
+  const cookies = Array.isArray(existing) ? existing.map(String) : existing ? [String(existing)] : [];
+  cookies.push(`${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`);
+  res.setHeader('Set-Cookie', cookies);
+}
+
+function getSessionUser(req: express.Request) {
+  const sessionId = readCookie(req, SESSION_COOKIE);
+  if (!sessionId) return null;
+  const session = (db.sessions || []).find((candidate) => candidate.id === sessionId);
+  if (!session) return null;
+  if (Date.parse(session.expiresAt) <= Date.now()) {
+    db.sessions = db.sessions.filter((candidate) => candidate.id !== sessionId);
+    saveDb();
+    return null;
+  }
+  return db.users.find((user) => user.id === session.userId) || null;
 }
 
 function hashPassword(password: string) {
@@ -1582,8 +1657,10 @@ async function startServer() {
     };
 
     db.users.push(newUser as any);
+    const session = createSession(newUser.id);
 
     saveDb();
+    setSessionCookie(req, res, session.id);
     io.emit('user:registered', toPublicUser(newUser));
     res.json({ success: true, user: toPublicUser(newUser) });
   });
@@ -1618,9 +1695,29 @@ async function startServer() {
     }
 
     user.status = 'online';
+    const session = createSession(user.id);
     saveDb();
+    setSessionCookie(req, res, session.id);
     io.emit('presence:update', { userId: user.id, status: 'online', timestamp: new Date().toISOString() });
     res.json({ success: true, user: toPublicUser(user) });
+  });
+
+  app.get('/api/auth/session', (req, res) => {
+    const user = getSessionUser(req);
+    if (!user) return res.status(401).json({ error: 'Phiên đăng nhập đã hết hạn.' });
+
+    user.status = 'online';
+    res.json({ success: true, user: toPublicUser(user) });
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    const sessionId = readCookie(req, SESSION_COOKIE);
+    if (sessionId) {
+      db.sessions = (db.sessions || []).filter((session) => session.id !== sessionId);
+      saveDb();
+    }
+    clearSessionCookie(req, res);
+    res.json({ success: true });
   });
 
   app.get('/api/auth/google/start', (req, res) => {
@@ -1697,7 +1794,9 @@ async function startServer() {
       if (!profileResponse.ok) throw new Error('Không lấy được hồ sơ Google.');
       const profile = (await profileResponse.json()) as { sub?: string; email?: string; name?: string; picture?: string };
       const user = createGoogleUser(profile);
+      const session = createSession(user.id);
       saveDb();
+      setSessionCookie(req, res, session.id);
       io.emit('user:registered', toPublicUser(user));
       io.emit('presence:update', { userId: user.id, status: 'online', timestamp: new Date().toISOString() });
 
@@ -1997,7 +2096,14 @@ async function startServer() {
 
   // Health check
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', app: 'Pinkmess — Bunny Chat', time: new Date().toISOString() });
+    const durableDatabase = Boolean(databasePool && databaseReady);
+    const healthy = process.env.NODE_ENV !== 'production' || durableDatabase;
+    res.status(healthy ? 200 : 503).json({
+      status: healthy ? 'ok' : 'degraded',
+      app: 'Pinkmess — Bunny Chat',
+      persistence: durableDatabase ? 'postgresql' : 'filesystem-development-only',
+      time: new Date().toISOString()
+    });
   });
 
   // Vite Integration

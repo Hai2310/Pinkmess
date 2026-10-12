@@ -32,6 +32,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('pinkmess_logged_in') === 'true';
   });
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
@@ -110,55 +111,62 @@ export default function App() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [usersRes, customPacksRes] = await Promise.all([fetch('/api/users'), fetch('/api/stickers/custom')]);
+        const [usersRes, customPacksRes, sessionRes] = await Promise.all([
+          fetch('/api/users'),
+          fetch('/api/stickers/custom'),
+          fetch('/api/auth/session', { credentials: 'same-origin' })
+        ]);
 
-        if (usersRes.ok) {
-          const usersData = await usersRes.json();
-          setUsers(usersData);
-          const googleCode = new URLSearchParams(window.location.search).get('google_code');
-          const googleError = new URLSearchParams(window.location.search).get('google_error');
-          let authenticatedUser: User | null = null;
+        const usersData: User[] = usersRes.ok ? await usersRes.json() : [];
+        if (usersRes.ok) setUsers(usersData);
 
-          if (googleCode) {
-            const googleSession = await fetch(`/api/auth/google/session?code=${encodeURIComponent(googleCode)}`);
-            if (googleSession.ok) {
-              const sessionData = await googleSession.json();
-              authenticatedUser = sessionData.user || null;
-            }
-            window.history.replaceState({}, document.title, window.location.pathname);
+        const googleCode = new URLSearchParams(window.location.search).get('google_code');
+        const googleError = new URLSearchParams(window.location.search).get('google_error');
+        let authenticatedUser: User | null = null;
+
+        if (googleCode) {
+          const googleSession = await fetch(`/api/auth/google/session?code=${encodeURIComponent(googleCode)}`);
+          if (googleSession.ok) {
+            const sessionData = await googleSession.json();
+            authenticatedUser = sessionData.user || null;
           }
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
 
-          if (!authenticatedUser) {
-            const savedUserId = localStorage.getItem('pinkmess_user_id') || localStorage.getItem('hustmess_user_id');
-            const matched = usersData.find((u: User) => u.id === savedUserId);
-            if (
-              matched &&
-              (localStorage.getItem('pinkmess_logged_in') === 'true' ||
-                localStorage.getItem('hustmess_logged_in') === 'true')
-            ) {
-              authenticatedUser = matched;
-            }
-          }
+        if (!authenticatedUser && sessionRes.ok) {
+          const sessionData = await sessionRes.json();
+          authenticatedUser = sessionData.user || null;
+        }
 
-          if (authenticatedUser) {
-            setCurrentUser(authenticatedUser);
-            setIsLoggedIn(true);
-            localStorage.setItem('pinkmess_logged_in', 'true');
-            localStorage.setItem('pinkmess_user_id', authenticatedUser.id);
-            localStorage.removeItem('hustmess_logged_in');
-            localStorage.removeItem('hustmess_user_id');
-            await loadUserConversations(authenticatedUser.id);
-          } else {
-            localStorage.removeItem('pinkmess_logged_in');
-            localStorage.removeItem('pinkmess_user_id');
-            localStorage.removeItem('hustmess_logged_in');
-            localStorage.removeItem('hustmess_user_id');
-            setCurrentUser(null);
-            setIsLoggedIn(false);
-            setConversations([]);
-            setActiveConversationId(null);
-            if (googleError) console.warn('Google OAuth failed:', googleError);
+        if (!authenticatedUser && usersRes.ok) {
+          const savedUserId = localStorage.getItem('pinkmess_user_id') || localStorage.getItem('hustmess_user_id');
+          const matched = usersData.find((u: User) => u.id === savedUserId);
+          if (
+            matched &&
+            (localStorage.getItem('pinkmess_logged_in') === 'true' ||
+              localStorage.getItem('hustmess_logged_in') === 'true')
+          ) {
+            authenticatedUser = matched;
           }
+        }
+
+        if (authenticatedUser) {
+          setCurrentUser(authenticatedUser);
+          setIsLoggedIn(true);
+          localStorage.setItem('pinkmess_logged_in', 'true');
+          localStorage.setItem('pinkmess_user_id', authenticatedUser.id);
+          localStorage.removeItem('hustmess_logged_in');
+          localStorage.removeItem('hustmess_user_id');
+          await loadUserConversations(authenticatedUser.id);
+        } else if (usersRes.ok && sessionRes.status === 401) {
+          // Only an explicit logout removes the local markers. Keeping them
+          // avoids forcing a user to re-login during a short Render wake-up or
+          // a transient API/database retry.
+          setCurrentUser(null);
+          setIsLoggedIn(false);
+          setConversations([]);
+          setActiveConversationId(null);
+          if (googleError) console.warn('Google OAuth failed:', googleError);
         }
 
         if (customPacksRes.ok) {
@@ -176,6 +184,8 @@ export default function App() {
         }
       } catch (err) {
         console.warn('Error fetching initial data:', err);
+      } finally {
+        setIsAuthResolved(true);
       }
     };
 
@@ -713,6 +723,7 @@ export default function App() {
     localStorage.removeItem('pinkmess_user_id');
     localStorage.removeItem('hustmess_logged_in');
     localStorage.removeItem('hustmess_user_id');
+    void fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
     getSocket().emit('user:leave');
   };
 
@@ -1181,6 +1192,14 @@ export default function App() {
   };
 
   const activeConversation = conversations.find((c) => c.id === activeConversationId) || null;
+
+  if (!isAuthResolved) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-[#FFF7FB] text-[#FF4F8B] font-bold">
+        Đang khôi phục phiên Pinkmess… 🐰
+      </div>
+    );
+  }
 
   if (!currentUser || !isLoggedIn) {
     return (
