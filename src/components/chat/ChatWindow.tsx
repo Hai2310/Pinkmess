@@ -126,8 +126,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setForwardingMessage(null);
   }, [conversation, currentUser.id]);
 
-  // Keep this cleanup independent from declarations below the empty-state return.
-  // New accounts can have no conversation, then switching tabs unmounts ChatWindow.
+  // This cleanup must not depend on a function declared below the
+  // `if (!conversation)` early return. New accounts can render ChatWindow
+  // without a conversation, then switching tabs unmounts it immediately.
   useEffect(
     () => () => {
       if (messageLongPressTimerRef.current !== null) {
@@ -340,7 +341,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {/* Top actions */}
         <div className="flex items-center gap-0.5 sm:gap-1 md:gap-2 shrink-0">
           <button
-            onClick={() => onStartCall('audio', targetCallUser)}
+            onClick={() => onStartCall('audio', conversation.type === 'group' ? undefined : targetCallUser)}
             className="p-2.5 rounded-2xl text-[#FF82AE] hover:text-[#FF4F8B] hover:bg-[#FFF0F6] active:scale-95 transition-all cursor-pointer"
             title="Gọi thoại giọng nói HD"
           >
@@ -348,7 +349,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </button>
 
           <button
-            onClick={() => onStartCall('video', targetCallUser)}
+            onClick={() => onStartCall('video', conversation.type === 'group' ? undefined : targetCallUser)}
             className="p-2.5 rounded-2xl text-[#FF82AE] hover:text-[#FF4F8B] hover:bg-[#FFF0F6] active:scale-95 transition-all cursor-pointer"
             title="Gọi video WebRTC HD"
           >
