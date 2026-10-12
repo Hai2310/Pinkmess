@@ -63,6 +63,7 @@ export interface Message {
   locationMapUrl?: string;
   locationRequestId?: string;
   audioDuration?: number;
+  audioMimeType?: string;
   attachments?: Attachment[];
   reactions?: Record<string, string[]>; // emoji -> array of userIds
   replyToId?: string;
