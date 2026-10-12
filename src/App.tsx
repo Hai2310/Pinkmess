@@ -7,11 +7,12 @@ import { ContactsView } from './components/contacts/ContactsView';
 import { CallsView } from './components/calls/CallsView';
 import { NotificationsView } from './components/notifications/NotificationsView';
 import { CallManager } from './components/calls/CallManager';
+import { GroupCallManager, GroupWebRTCSignal } from './components/calls/GroupCallManager';
 import { NewChatModal } from './components/chat/NewChatModal';
 import { CustomStickerModal } from './components/stickers/CustomStickerModal';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { AuthModal } from './components/auth/AuthModal';
-import { User, Conversation, Message, CallState, StickerPack, UserStatus, MissedCallRequest, LocationSession } from './types';
+import { User, Conversation, Message, CallState, GroupCallParticipant, GroupCallState, StickerPack, UserStatus, MissedCallRequest, LocationSession } from './types';
 import { getSocket } from './lib/socket';
 import { getStickerCatalog } from './lib/stickersData';
 import { loadImportedStickerPacks } from './lib/importedStickers';
@@ -58,6 +59,20 @@ export default function App() {
     isScreenSharing: false,
     duration: 0
   });
+  const [groupCallState, setGroupCallState] = useState<GroupCallState>({
+    active: false,
+    callId: null,
+    conversationId: null,
+    type: 'audio',
+    direction: 'connected',
+    hostUserId: null,
+    participants: [],
+    isMuted: false,
+    isVideoOff: false,
+    isScreenSharing: false,
+    duration: 0
+  });
+  const [groupCallSignal, setGroupCallSignal] = useState<GroupWebRTCSignal | null>(null);
 
   const typingTimeoutRef = useRef<number | null>(null);
   const locationWatchersRef = useRef<Map<string, number>>(new Map());
@@ -489,6 +504,116 @@ export default function App() {
       );
     };
 
+    const asGroupParticipant = (rawUser: User | null | undefined, joined: boolean): GroupCallParticipant | null => {
+      if (!rawUser?.id) return null;
+      return { user: rawUser, isMuted: false, isVideoOff: false, joined };
+    };
+
+    const handleIncomingGroupCall = (payload: any) => {
+      if (!currentUser || !payload?.callId || !payload?.conversationId) return;
+      const rawParticipants = Array.isArray(payload.participants) ? payload.participants : [];
+      const participants = rawParticipants
+        .map((user: User) => asGroupParticipant(user, user.id === payload.hostUserId))
+        .filter(Boolean) as GroupCallParticipant[];
+      if (!participants.some((participant) => participant.user.id === currentUser.id)) {
+        const self = asGroupParticipant(currentUser, false);
+        if (self) participants.push(self);
+      }
+      setGroupCallState({
+        active: true,
+        callId: payload.callId,
+        conversationId: payload.conversationId,
+        type: payload.type === 'video' ? 'video' : 'audio',
+        direction: 'incoming',
+        hostUserId: payload.hostUserId || payload.fromUser?.id || null,
+        participants,
+        isMuted: false,
+        isVideoOff: false,
+        isScreenSharing: false,
+        duration: 0
+      });
+    };
+
+    const handleGroupCallStarted = (payload: any) => {
+      if (!currentUser || !payload?.callId) return;
+      const participants = (Array.isArray(payload.participants) ? payload.participants : [])
+        .map((user: User) => asGroupParticipant(user, user.id === currentUser.id))
+        .filter(Boolean) as GroupCallParticipant[];
+      setGroupCallState((previous) => previous.callId === payload.callId
+        ? { ...previous, participants: participants.length ? participants : previous.participants }
+        : previous);
+    };
+
+    const handleGroupCallJoined = (payload: any) => {
+      if (!currentUser || !payload?.callId) return;
+      const participants = (Array.isArray(payload.participants) ? payload.participants : [])
+        .map((user: User) => asGroupParticipant(user, true))
+        .filter(Boolean) as GroupCallParticipant[];
+      if (!participants.some((participant) => participant.user.id === currentUser.id)) {
+        const self = asGroupParticipant(currentUser, true);
+        if (self) participants.push(self);
+      }
+      setGroupCallState((previous) => previous.callId === payload.callId ? {
+        ...previous,
+        active: true,
+        direction: 'connected',
+        participants,
+        hostUserId: payload.hostUserId || previous.hostUserId
+      } : previous);
+    };
+
+    const handleGroupParticipantJoined = (payload: any) => {
+      if (!payload?.callId || !payload?.participant) return;
+      setGroupCallState((previous) => {
+        if (previous.callId !== payload.callId) return previous;
+        const next = asGroupParticipant(payload.participant as User, true);
+        if (!next) return previous;
+        const exists = previous.participants.some((participant) => participant.user.id === next.user.id);
+        return {
+          ...previous,
+          participants: exists
+            ? previous.participants.map((participant) => participant.user.id === next.user.id ? { ...participant, user: next.user, joined: true } : participant)
+            : [...previous.participants, next]
+        };
+      });
+    };
+
+    const handleGroupParticipantLeft = (payload: any) => {
+      if (!payload?.callId || !payload?.userId) return;
+      setGroupCallState((previous) => previous.callId === payload.callId
+        ? { ...previous, participants: previous.participants.map((participant) => participant.user.id === payload.userId ? { ...participant, joined: false } : participant) }
+        : previous);
+    };
+
+    const handleGroupCallMediaState = (payload: any) => {
+      if (!payload?.callId || !payload?.fromUserId) return;
+      setGroupCallState((previous) => previous.callId === payload.callId
+        ? {
+            ...previous,
+            participants: previous.participants.map((participant) => participant.user.id === payload.fromUserId
+              ? { ...participant, isMuted: Boolean(payload.isMuted), isVideoOff: Boolean(payload.isVideoOff) }
+              : participant)
+          }
+        : previous);
+    };
+
+    const handleGroupCallEnded = (payload: any) => {
+      if (!payload?.callId) return;
+      setGroupCallState((previous) => previous.callId === payload.callId ? { ...previous, active: false } : previous);
+      setGroupCallSignal(null);
+    };
+
+    const handleGroupCallUnavailable = (payload: any) => {
+      if (!payload?.callId) return;
+      setGroupCallState((previous) => previous.callId === payload.callId ? { ...previous, active: false } : previous);
+      window.alert(payload.message || 'Không thể mở cuộc gọi nhóm lúc này.');
+    };
+
+    const handleGroupWebRTCSignal = (payload: GroupWebRTCSignal) => {
+      if (!payload?.callId || payload.targetUserId !== currentUser?.id) return;
+      setGroupCallSignal(payload);
+    };
+
     socket.on('message:new', handleNewMessage);
     socket.on('connect', handleSocketConnect);
     socket.on('conversation:new', handleConversationNew);
@@ -512,6 +637,15 @@ export default function App() {
     socket.on('call:ended', handleCallEnded);
     socket.on('call:unavailable', handleCallUnavailable);
     socket.on('call:media-state', handleCallMediaState);
+    socket.on('group-call:incoming', handleIncomingGroupCall);
+    socket.on('group-call:started', handleGroupCallStarted);
+    socket.on('group-call:joined', handleGroupCallJoined);
+    socket.on('group-call:participant-joined', handleGroupParticipantJoined);
+    socket.on('group-call:participant-left', handleGroupParticipantLeft);
+    socket.on('group-call:media-state', handleGroupCallMediaState);
+    socket.on('group-call:ended', handleGroupCallEnded);
+    socket.on('group-call:unavailable', handleGroupCallUnavailable);
+    socket.on('group-webrtc:signal', handleGroupWebRTCSignal);
 
     return () => {
       socket.off('message:new', handleNewMessage);
@@ -537,6 +671,15 @@ export default function App() {
       socket.off('call:ended', handleCallEnded);
       socket.off('call:unavailable', handleCallUnavailable);
       socket.off('call:media-state', handleCallMediaState);
+      socket.off('group-call:incoming', handleIncomingGroupCall);
+      socket.off('group-call:started', handleGroupCallStarted);
+      socket.off('group-call:joined', handleGroupCallJoined);
+      socket.off('group-call:participant-joined', handleGroupParticipantJoined);
+      socket.off('group-call:participant-left', handleGroupParticipantLeft);
+      socket.off('group-call:media-state', handleGroupCallMediaState);
+      socket.off('group-call:ended', handleGroupCallEnded);
+      socket.off('group-call:unavailable', handleGroupCallUnavailable);
+      socket.off('group-webrtc:signal', handleGroupWebRTCSignal);
     };
   }, [activeConversationId, currentUser, callState.callId, loadMissedCalls, startLocationWatcher, stopLocationWatcher]);
 
@@ -664,8 +807,53 @@ export default function App() {
   };
 
   // Start Call
+  const handleStartGroupCall = (type: 'audio' | 'video') => {
+    if (!currentUser || !activeConversationId) return;
+    const conversation = conversations.find((item) => item.id === activeConversationId);
+    if (!conversation || conversation.type !== 'group') return;
+
+    const participants = conversation.participants
+      .map((userId) => users.find((user) => user.id === userId) || (userId === currentUser.id ? currentUser : null))
+      .filter(Boolean) as User[];
+    if (participants.length < 2) {
+      window.alert('Nhóm cần ít nhất 2 thành viên để bắt đầu cuộc gọi nhé.');
+      return;
+    }
+    if (participants.length > 6) {
+      window.alert('Cuộc gọi nhóm Pinkmess hỗ trợ tối đa 6 người để giữ latency thấp và hình tiếng mượt nhất.');
+      return;
+    }
+
+    const callId = `group_call_${Date.now()}`;
+    setGroupCallState({
+      active: true,
+      callId,
+      conversationId: conversation.id,
+      type,
+      direction: 'connected',
+      hostUserId: currentUser.id,
+      participants: participants.map((user) => ({ user, isMuted: false, isVideoOff: false, joined: user.id === currentUser.id })),
+      isMuted: false,
+      isVideoOff: false,
+      isScreenSharing: false,
+      duration: 0
+    });
+    getSocket().emit('group-call:invite', {
+      callId,
+      conversationId: conversation.id,
+      type,
+      participantIds: participants.map((user) => user.id)
+    });
+  };
+
   const handleStartCall = (type: 'audio' | 'video', targetUserParam?: User) => {
     if (!currentUser) return;
+
+    const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId);
+    if (activeConversation?.type === 'group' && !targetUserParam) {
+      handleStartGroupCall(type);
+      return;
+    }
 
     let target = targetUserParam;
     if (!target) {
@@ -767,6 +955,60 @@ export default function App() {
     const socket = getSocket();
     socket.emit('call:end', { callId: callState.callId });
     setCallState((prev) => ({ ...prev, active: false }));
+  };
+
+  const handleAcceptGroupCall = () => {
+    if (!groupCallState.callId || !groupCallState.conversationId) return;
+    getSocket().emit('group-call:join', {
+      callId: groupCallState.callId,
+      conversationId: groupCallState.conversationId
+    });
+    setGroupCallState((previous) => ({ ...previous, direction: 'connected' }));
+  };
+
+  const handleRejectGroupCall = () => {
+    if (groupCallState.callId) getSocket().emit('group-call:reject', { callId: groupCallState.callId });
+    setGroupCallState((previous) => ({ ...previous, active: false }));
+    setGroupCallSignal(null);
+  };
+
+  const handleEndGroupCall = () => {
+    if (groupCallState.callId) {
+      getSocket().emit('group-call:leave', {
+        callId: groupCallState.callId,
+        conversationId: groupCallState.conversationId
+      });
+    }
+    setGroupCallState((previous) => ({ ...previous, active: false }));
+    setGroupCallSignal(null);
+  };
+
+  const handleToggleGroupMute = () => {
+    setGroupCallState((previous) => {
+      const isMuted = !previous.isMuted;
+      if (previous.callId) {
+        getSocket().emit('group-call:media-state', {
+          callId: previous.callId,
+          isMuted,
+          isVideoOff: previous.isVideoOff
+        });
+      }
+      return { ...previous, isMuted };
+    });
+  };
+
+  const handleToggleGroupVideo = () => {
+    setGroupCallState((previous) => {
+      const isVideoOff = !previous.isVideoOff;
+      if (previous.callId) {
+        getSocket().emit('group-call:media-state', {
+          callId: previous.callId,
+          isMuted: previous.isMuted,
+          isVideoOff
+        });
+      }
+      return { ...previous, isVideoOff };
+    });
   };
 
   // Open a conversation from the global user search.
@@ -1102,6 +1344,17 @@ export default function App() {
       </div>
 
       {/* WebRTC Audio / Video Call Manager */}
+      <GroupCallManager
+        callState={groupCallState}
+        currentUser={currentUser}
+        signal={groupCallSignal}
+        onAcceptCall={handleAcceptGroupCall}
+        onRejectCall={handleRejectGroupCall}
+        onEndCall={handleEndGroupCall}
+        onToggleMute={handleToggleGroupMute}
+        onToggleVideo={handleToggleGroupVideo}
+      />
+
       <CallManager
         callState={callState}
         currentUser={currentUser}
